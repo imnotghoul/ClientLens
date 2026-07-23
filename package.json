@@ -1,0 +1,44 @@
+{
+  "name": "freelance-trust-audit",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:client": "vite --host 127.0.0.1",
+    "dev:server": "tsx watch server/index.ts",
+    "start": "node --import tsx server/index.ts",
+    "build": "tsc -b && vite build",
+    "test": "vitest",
+    "lint": "eslint src server --max-warnings=0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
+    "@vitejs/plugin-react": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "express-rate-limit": "^8.6.0",
+    "helmet": "^8.3.0",
+    "openai": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "@types/express": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "concurrently": "latest",
+    "eslint": "latest",
+    "jsdom": "latest",
+    "tsx": "latest",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
+  }
+}

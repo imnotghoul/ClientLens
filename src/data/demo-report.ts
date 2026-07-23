@@ -1,0 +1,4 @@
+import { createProfileAudit } from '../scoring/profile-scoring';
+import type { ProfileInput } from '../domain/profile';
+export const demoProfile: ProfileInput = { name: 'Алина', specialization: 'UX/UI дизайнер', title: 'UX/UI дизайн SaaS и лендингов для B2B', description: 'Помогаю B2B-командам превратить сложный продукт в понятный интерфейс. Исследую сценарии, проектирую прототип и готовлю интерфейс к разработке.', services: 'UX-аудит, прототип, UI-дизайн', price: 'от 35 000 ₽: аудит, прототип и 2 раунда правок', reviews: '38 отзывов, 5.0', completedOrders: 52, portfolio: 'SaaS-платформа: +18% к завершению заявки; B2B-кабинет: -24% ошибок в сценарии', profileUrl: '', extra: 'B2B-команд и SaaS-продуктов', goal: 'orders' };
+export const demoAudit = () => ({ ...createProfileAudit(demoProfile), analysisMode: 'basic' as const, analysisSummary: 'Демо-отчёт показывает, как выглядит готовый разбор профиля.' });
