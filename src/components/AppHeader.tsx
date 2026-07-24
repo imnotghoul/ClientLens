@@ -29,7 +29,7 @@ export function AppHeader({ activeView, reportCount, isAuthenticated, accountLab
   const avatar = !identityReady ? <span className="header-avatar pending" aria-label="Загрузка профиля" /> : avatarUrl ? <img className="header-avatar header-avatar-image" src={avatarUrl} alt="Аватар аккаунта" /> : <span className="header-avatar" aria-hidden="true">{initial}</span>;
 
   return <header className="app-header">
-    <button className="brand" type="button" onClick={() => navigate('new')} aria-label="ClientLens: новый анализ"><i>CL</i><span>Client<span>Lens</span></span></button>
+    <button className="brand" type="button" onClick={() => navigate('new')} aria-label="ClientLens: новый анализ"><img src="/brand/clientlens-mark.png" alt="ClientLens" /><span>Client<span>Lens</span></span></button>
     <button className="menu-toggle" type="button" aria-label="Открыть навигацию" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>Меню</button>
     <nav className={`header-nav ${menuOpen ? 'open' : ''}`} aria-label="Основная навигация">
       {links.map((link) => <button key={link.id} className={activeView === link.id ? 'selected' : ''} type="button" onClick={() => navigate(link.id)}>{link.label}{link.id === 'reports' && reportCount > 0 ? <small>{reportCount}</small> : null}</button>)}

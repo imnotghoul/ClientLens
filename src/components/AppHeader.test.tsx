@@ -5,6 +5,11 @@ import { AppHeader } from './AppHeader';
 afterEach(cleanup);
 
 describe('AppHeader', () => {
+  it('uses the ClientLens brand mark in the global header', () => {
+    render(<AppHeader activeView="new" reportCount={0} isAuthenticated={false} accountLabel="" onNavigate={vi.fn()} onAuth={vi.fn()} />);
+    expect(screen.getByRole('img', { name: 'ClientLens' }).getAttribute('src')).toBe('/brand/clientlens-mark.png');
+  });
+
   it('shows guest auth actions and navigates to reports', () => {
     const onNavigate = vi.fn();
     const onAuth = vi.fn();
