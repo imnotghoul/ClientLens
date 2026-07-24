@@ -11,7 +11,48 @@ const quality = (value: string, markers: string[], cap: number) => {
   return Math.max(1, Math.min(cap, lengthPoints + proofPoints - genericPenalty));
 };
 
-export function createProfileAudit(input: ProfileInput, platform = 'Kwork'): ProfileAudit {
+export function buildActionPlan(input: ProfileInput) {
+  const hasPortfolioEvidence = /кейс|результат|итог|%|рост|сократ/i.test(input.portfolio);
+  const hasPriceScope = /входит|состав|правк|этап|вариант|:/.test(input.price.toLowerCase());
+  const hasReviewProof = /отзыв|оценк|5[,.]0|заказ/i.test(input.reviews.toLowerCase()) || input.completedOrders > 0;
+  const hasClearDescription = input.description.trim().length >= 70;
+  const hasClearTitle = input.title.trim().length > 0;
+  const fallbackActions = [
+    'Обновите лучший кейс свежим измеримым результатом.',
+    'Проверьте, что цена соответствует текущему составу работы.',
+  ];
+
+  const quickWins = [
+    !hasClearTitle && 'Сформулируйте заголовок через специализацию и результат для клиента.',
+    !hasClearDescription && 'Добавьте в описание одну строку о результате и процессе работы.',
+    !hasPriceScope && 'Рядом с ценой укажите состав работы, этапы и число правок.',
+    !hasPortfolioEvidence && 'Вынесите выше один кейс: задача, решение и измеримый итог.',
+    !hasReviewProof && 'Добавьте видимые сигналы доверия: отзывы, число заказов или результат кейса.',
+  ].filter(Boolean) as string[];
+  const tenMinutes = [
+    !hasClearTitle && 'Перепишите первую строку через конкретную задачу и результат.',
+    !hasClearDescription && 'Добавьте в описание один понятный результат для клиента.',
+    !hasPriceScope && 'Уточните состав цены и границы правок.',
+    'Проверьте, что первый экран профиля отвечает на вопрос «что вы сделаете».',
+  ].filter(Boolean) as string[];
+  const oneDay = [
+    !hasPortfolioEvidence && 'Соберите два кейса в формате задача → решение → измеримый итог.',
+    !hasReviewProof && 'Добавьте отзывы, число завершённых заказов или конкретный результат из кейса.',
+    !hasClearDescription && 'Опишите этапы работы и следующий шаг для клиента.',
+    'Обновите лучший пример работы свежими деталями и результатом.',
+  ].filter(Boolean) as string[];
+
+  return {
+    quickWins: (quickWins.length ? quickWins : fallbackActions).slice(0, 5),
+    tenMinutes: (tenMinutes.length ? tenMinutes : fallbackActions).slice(0, 3),
+    oneDay: (oneDay.length ? oneDay : fallbackActions).slice(0, 3),
+    maximumEffect: hasPortfolioEvidence && hasPriceScope
+      ? 'Свяжите лучший кейс с услугой и понятным следующим шагом для клиента.'
+      : 'Свяжите специализацию, кейс и цену в одном понятном предложении.',
+  };
+}
+
+export function createProfileAudit(input: ProfileInput, platform = 'Профиль фрилансера'): ProfileAudit {
   const score = Math.round(Math.min(94, 9
     + (present(input.specialization) ? 6 : 0)
     + quality(input.title, ['для', 'b2b', 'saaS', 'рост', 'конверс'], 12)
@@ -45,5 +86,16 @@ export function createProfileAudit(input: ProfileInput, platform = 'Kwork'): Pro
     before: input.title || 'Делаю качественно и недорого', after: `${role}: конкретный результат для ${audience}`,
   };
   const categories = [['Первое впечатление', present(input.title)], ['Доверие', present(input.reviews) || input.completedOrders > 0], ['Позиционирование', present(input.specialization)], ['Оффер', present(input.services)], ['Заголовок', present(input.title)], ['Описание', input.description.length > 70], ['Кворки', present(input.services)], ['Портфолио', present(input.portfolio)], ['Отзывы', present(input.reviews)], ['Цена', present(input.price)], ['Риски для клиента', present(input.portfolio) && (present(input.reviews) || input.completedOrders > 0)], ['Вероятность заказа', score >= 55]].map(([name, good]) => ({ name: String(name), score: good ? Math.min(92, score + 9) : Math.max(24, score - 16), status: (good ? 'Хорошо' : score >= 55 ? 'Средне' : 'Требует внимания') as 'Хорошо' | 'Средне' | 'Требует внимания', explanation: good ? 'В профиле уже есть понятный сигнал для клиента.' : 'Клиенту может быть сложно оценить этот элемент профиля.', recommendation: good ? 'Сохраните конкретику и добавьте один свежий пример.' : 'Добавьте конкретный результат и объясните, что получает клиент.', example: good ? 'Покажите один кейс с задачей и итогом.' : 'Формула: задача → ваш подход → измеримый результат.' }));
-  return { platform, score, trust, likelihood: score >= 75 ? 'Высокая' : score >= 50 ? 'Средняя' : 'Низкая', barrier: issues[0], issues: issues.slice(0, 5), quickWins: ['Сделать заголовок конкретнее', 'Добавить одну строку о результате', 'Показать состав цены', 'Вынести сильный кейс выше', 'Сформулировать следующий шаг для клиента'], tenMinutes: ['Перепишите первую строку профиля', 'Добавьте 1 результат в описание', 'Уточните, что входит в услугу'], oneDay: ['Соберите 2 кейса с результатом', 'Обновите структуру кворков', 'Добавьте ответы на частые сомнения'], maximumEffect: 'Связать специализацию, кейс и цену в одном понятном предложении.', clientViews, improvements, categories };
+  return {
+    platform,
+    score,
+    trust,
+    likelihood: score >= 75 ? 'Высокая' : score >= 50 ? 'Средняя' : 'Низкая',
+    barrier: issues[0],
+    issues: issues.slice(0, 5),
+    ...buildActionPlan(input),
+    clientViews,
+    improvements,
+    categories: categories.map((category) => category.name === 'Кворки' ? { ...category, name: 'Услуги' } : category),
+  };
 }

@@ -17,6 +17,31 @@ const sparseProfile = {
 };
 
 describe('createProfileAudit', () => {
+  it('asks for cases only when portfolio evidence is missing', () => {
+    const withoutCases = createProfileAudit(sparseProfile, 'Профиль фрилансера');
+    const withCases = createProfileAudit({
+      ...sparseProfile,
+      portfolio: 'Кейс: сократили ошибки на 24%; задача, решение и результат.',
+    }, 'Профиль фрилансера');
+
+    expect(withoutCases.quickWins.join(' ')).toMatch(/кейс|портфолио/i);
+    expect(withCases.quickWins.join(' ')).not.toMatch(/добавить.*кейс|добавить.*портфолио/i);
+  });
+
+  it('does not prescribe price composition when the price already explains scope', () => {
+    const audit = createProfileAudit({
+      ...sparseProfile,
+      price: 'от 35 000 ₽: аудит, прототип, UI-kit и два раунда правок',
+    }, 'Профиль фрилансера');
+
+    expect(audit.quickWins.join(' ')).not.toMatch(/состав цены/i);
+  });
+
+  it('uses marketplace-neutral one-day actions', () => {
+    const audit = createProfileAudit(sparseProfile, 'FL.ru');
+    expect(audit.oneDay.join(' ')).not.toMatch(/кворк/i);
+  });
+
   it('explains the lack of trust signals on a sparse profile', () => {
     const audit = createProfileAudit(sparseProfile, 'Kwork');
     expect(audit.issues.some((issue) => /довер/i.test(issue.title))).toBe(true);
