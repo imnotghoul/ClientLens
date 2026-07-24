@@ -15,12 +15,13 @@ import { getAnalysisPrice } from './domain/pricing';
 import { deleteCloudReport, listCloudReports, saveCloudReport } from './storage/cloud-report-store';
 import { deleteReport, listReports, saveReport, type SavedReport } from './storage/report-store';
 import { canUseFreeLuna, consumeFreeLuna } from './storage/usage';
-import { getSavedView, saveView } from './storage/view-store';
-import { pathForPublicPage, publicPageFromPath } from './legal/public-pages';
+import { saveView } from './storage/view-store';
+import { pathForPublicPage } from './legal/public-pages';
+import { initialViewFromPath } from './legal/initial-view';
 
 type View = 'new' | 'reports' | 'demo' | 'profile' | LegalKind;
 
-const getInitialView = (): View => publicPageFromPath(window.location.pathname) ?? getSavedView();
+const getInitialView = (): View => initialViewFromPath(window.location.pathname);
 
 export default function App() {
   const [view, setView] = useState<View>(getInitialView);
