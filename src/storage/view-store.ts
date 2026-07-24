@@ -1,4 +1,4 @@
-export const savedViews = ['new', 'reports', 'demo', 'profile', 'privacy', 'terms'] as const;
+export const savedViews = ['new', 'reports', 'demo', 'profile', 'privacy', 'terms', 'pricing', 'offer', 'contacts'] as const;
 export type SavedView = typeof savedViews[number];
 const key = 'clientlens-last-view-v1';
 export const isSavedView = (value: string | null): value is SavedView => savedViews.includes(value as SavedView);

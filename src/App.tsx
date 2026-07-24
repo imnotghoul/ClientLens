@@ -7,7 +7,7 @@ import { supabase } from './auth/supabase';
 import { requestAnalysis, type AnalysisRequest } from './api/analyze';
 import { AppHeader, type HeaderView } from './components/AppHeader';
 import { Dashboard } from './components/Dashboard';
-import { LegalPage } from './components/LegalPage';
+import { LegalPage, type LegalKind } from './components/LegalPage';
 import { ProfileForm } from './components/ProfileForm';
 import { demoAudit } from './data/demo-report';
 import type { ProfileAudit } from './domain/profile';
@@ -16,11 +16,14 @@ import { deleteCloudReport, listCloudReports, saveCloudReport } from './storage/
 import { deleteReport, listReports, saveReport, type SavedReport } from './storage/report-store';
 import { canUseFreeLuna, consumeFreeLuna } from './storage/usage';
 import { getSavedView, saveView } from './storage/view-store';
+import { pathForPublicPage, publicPageFromPath } from './legal/public-pages';
 
-type View = 'new' | 'reports' | 'demo' | 'profile' | 'privacy' | 'terms';
+type View = 'new' | 'reports' | 'demo' | 'profile' | LegalKind;
+
+const getInitialView = (): View => publicPageFromPath(window.location.pathname) ?? getSavedView();
 
 export default function App() {
-  const [view, setView] = useState<View>(getSavedView);
+  const [view, setView] = useState<View>(getInitialView);
   const [audit, setAudit] = useState<ProfileAudit | null>(null);
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState<SavedReport[]>(listReports());
@@ -57,7 +60,11 @@ export default function App() {
     });
   }, [session]);
   useEffect(() => { void refreshProfileIdentity(); }, [session]);
-  useEffect(() => { saveView(view); }, [view]);
+  useEffect(() => {
+    saveView(view);
+    const publicPage = ['pricing', 'offer', 'contacts'].includes(view) ? view as 'pricing' | 'offer' | 'contacts' : null;
+    window.history.replaceState(null, '', publicPage ? pathForPublicPage(publicPage) : '/');
+  }, [view]);
 
   const saveAndOpen = (request: AnalysisRequest, report: ProfileAudit) => {
     setAudit(report);
@@ -129,8 +136,9 @@ export default function App() {
       {!loading && view === 'reports' ? <Reports reports={reports} onOpen={(report) => { setAudit(report.audit); setView('demo'); }} onDelete={(id) => { deleteReport(id); if (session) void deleteCloudReport(id); setReports(listReports()); }} onNew={() => setView('new')} /> : null}
       {!loading && view === 'demo' && audit ? <Dashboard audit={audit} onRestart={() => setView('new')} /> : null}
       {!loading && view === 'profile' ? session ? <><AccountPanel mode="profile" onProfileChanged={refreshProfileIdentity} /><AccountPanel mode="settings" onProfileChanged={refreshProfileIdentity} /></> : <AccountPanel initialScreen={authIntent} /> : null}
-      {!loading && (view === 'privacy' || view === 'terms') ? <LegalPage kind={view} onBack={() => setView('new')} /> : null}
+      {!loading && (view === 'privacy' || view === 'terms' || view === 'pricing' || view === 'offer' || view === 'contacts') ? <LegalPage kind={view} onBack={() => setView('new')} /> : null}
     </section>
+    <footer className="site-footer"><button type="button" onClick={() => setView('pricing')}>Цены</button><button type="button" onClick={() => setView('offer')}>Оферта</button><button type="button" onClick={() => setView('contacts')}>Контакты</button><button type="button" onClick={() => setView('privacy')}>Конфиденциальность</button><button type="button" onClick={() => setView('terms')}>Условия</button></footer>
   </main>;
 }
 
