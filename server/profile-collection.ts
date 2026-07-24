@@ -3,6 +3,14 @@ import { emptyProfile, type ProfileInput } from '../src/domain/profile';
 export type PlatformId = 'kwork' | 'flru' | 'freelanceRu';
 export type CollectedProfile = { profile: ProfileInput; platform: PlatformId; sourceUrl: string; warnings: string[]; collectedFields: string[] };
 
+const platformLabels: Record<PlatformId, string> = {
+  kwork: 'Kwork',
+  flru: 'FL.ru',
+  freelanceRu: 'Freelance.ru',
+};
+
+export const platformLabel = (platform?: PlatformId): string => platform ? platformLabels[platform] : 'Профиль фрилансера';
+
 const allowedHosts: Record<PlatformId, string[]> = {
   kwork: ['kwork.ru', 'www.kwork.ru'],
   flru: ['fl.ru', 'www.fl.ru'],

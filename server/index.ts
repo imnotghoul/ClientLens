@@ -5,7 +5,7 @@ import { rateLimit } from 'express-rate-limit';
 import { analyzeWithAi } from './ai';
 import { extractBearerToken, requireAuthenticatedUser, verifySupabaseAccessToken } from './auth';
 import { sanitizeProfile } from './input';
-import { collectPublicProfile } from './profile-collection';
+import { collectPublicProfile, platformLabel } from './profile-collection';
 import { compareProfiles } from '../src/scoring/competitive-analysis';
 import type { ProfileInput } from '../src/domain/profile';
 import { isProduction, serveProductionFiles } from './production';
@@ -44,7 +44,7 @@ app.post('/api/analyze', analyzeLimit, async (request, response, next) => {
     const collected = manual.profileUrl ? await collectPublicProfile(manual.profileUrl).catch(() => undefined) : undefined;
     const profile = mergeProfile(manual, collected?.profile);
     const model = ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol'].includes(request.body?.model) ? request.body.model : undefined;
-    const result = await analyzeWithAi(profile, model);
+    const result = await analyzeWithAi(profile, { model, platform: platformLabel(collected?.platform) });
     const rawCompetitors = Array.isArray(request.body?.competitors) ? request.body.competitors.slice(0, 3) : [];
     const competitors = await Promise.all(rawCompetitors.map(async (item) => {
       const source = typeof item?.profileUrl === 'string' ? await collectPublicProfile(item.profileUrl).catch(() => undefined) : undefined;
