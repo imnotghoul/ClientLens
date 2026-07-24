@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { ProfileAnalyzer } from './analyzers/profile-analyzer';
 import { AccountPanel } from './auth/AccountPanel';
+import { toProfilePresentation, type ProfilePresentation } from './auth/profile-presentation';
 import { supabase } from './auth/supabase';
 import { requestAnalysis, type AnalysisRequest } from './api/analyze';
 import { AppHeader, type HeaderView } from './components/AppHeader';
@@ -26,6 +27,21 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [session, setSession] = useState<Session | null>(null);
   const [authIntent, setAuthIntent] = useState<'login' | 'register'>('login');
+  const [profileIdentity, setProfileIdentity] = useState<ProfilePresentation | null>(null);
+  const [identityReady, setIdentityReady] = useState(true);
+
+  const refreshProfileIdentity = async () => {
+    if (!supabase || !session) {
+      setProfileIdentity(null);
+      setIdentityReady(true);
+      return;
+    }
+    setIdentityReady(false);
+    const { data } = await supabase.from('profiles').select('nickname, avatar_path').eq('id', session.user.id).maybeSingle();
+    const avatarUrl = data?.avatar_path ? supabase.storage.from('avatars').getPublicUrl(data.avatar_path).data.publicUrl : '';
+    setProfileIdentity(toProfilePresentation(data, avatarUrl));
+    setIdentityReady(true);
+  };
 
   useEffect(() => {
     if (!supabase) return;
@@ -40,6 +56,7 @@ export default function App() {
       if (cloudReports.length) setReports(cloudReports);
     });
   }, [session]);
+  useEffect(() => { void refreshProfileIdentity(); }, [session]);
   useEffect(() => { saveView(view); }, [view]);
 
   const saveAndOpen = (request: AnalysisRequest, report: ProfileAudit) => {
@@ -106,12 +123,12 @@ export default function App() {
   const activeHeaderView: HeaderView = view === 'reports' || view === 'demo' || view === 'profile' ? view : 'new';
 
   return <main className="app">
-    <AppHeader activeView={activeHeaderView} reportCount={reports.length} isAuthenticated={Boolean(session)} accountLabel={session?.user.email ?? ''} onNavigate={navigate} onAuth={(intent) => { setAuthIntent(intent); setView('profile'); }} />
+    <AppHeader activeView={activeHeaderView} reportCount={reports.length} isAuthenticated={Boolean(session)} accountLabel={profileIdentity?.nickname ?? ''} avatarUrl={profileIdentity?.avatarUrl ?? ''} identityReady={identityReady} onNavigate={navigate} onAuth={(intent) => { setAuthIntent(intent); setView('profile'); }} />
     <section className="content">
       {loading ? <Loading /> : view === 'new' ? <ProfileForm onAnalyze={analyze} onDemo={openDemo} notice={notice} /> : null}
       {!loading && view === 'reports' ? <Reports reports={reports} onOpen={(report) => { setAudit(report.audit); setView('demo'); }} onDelete={(id) => { deleteReport(id); if (session) void deleteCloudReport(id); setReports(listReports()); }} onNew={() => setView('new')} /> : null}
       {!loading && view === 'demo' && audit ? <Dashboard audit={audit} onRestart={() => setView('new')} /> : null}
-      {!loading && view === 'profile' ? session ? <><AccountPanel mode="profile" /><AccountPanel mode="settings" /></> : <AccountPanel initialScreen={authIntent} /> : null}
+      {!loading && view === 'profile' ? session ? <><AccountPanel mode="profile" onProfileChanged={refreshProfileIdentity} /><AccountPanel mode="settings" onProfileChanged={refreshProfileIdentity} /></> : <AccountPanel initialScreen={authIntent} /> : null}
       {!loading && (view === 'privacy' || view === 'terms') ? <LegalPage kind={view} onBack={() => setView('new')} /> : null}
     </section>
   </main>;

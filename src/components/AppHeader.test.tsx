@@ -21,10 +21,15 @@ describe('AppHeader', () => {
   });
 
   it('shows an account trigger with the user initial for signed-in users', () => {
-    render(<AppHeader activeView="reports" reportCount={0} isAuthenticated accountLabel="aegis@example.com" onNavigate={vi.fn()} onAuth={vi.fn()} />);
+    render(<AppHeader activeView="reports" reportCount={0} isAuthenticated identityReady accountLabel="aegis" avatarUrl="" onNavigate={vi.fn()} onAuth={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: /Аккаунт/i })).toBeTruthy();
     expect(screen.getByText('A')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Вход' })).toBeNull();
+  });
+
+  it('uses the uploaded profile avatar instead of an email-derived initial', () => {
+    render(<AppHeader activeView="new" reportCount={0} isAuthenticated identityReady accountLabel="aegis" avatarUrl="https://cdn.example/avatar.png" onNavigate={vi.fn()} onAuth={vi.fn()} />);
+    expect(screen.getByRole('img', { name: 'Аватар аккаунта' }).getAttribute('src')).toBe('https://cdn.example/avatar.png');
   });
 });
