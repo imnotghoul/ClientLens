@@ -1,1 +1,10 @@
 /* Layout is intentionally defined in styles.css to keep the editorial system coherent. */
+
+/* Legal links stay readable on the dark background without the default browser blue. */
+.legal-page a {
+  color: #9bc9e8;
+}
+
+.legal-page a:hover {
+  color: #c5e5f7;
+}
