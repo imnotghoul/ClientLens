@@ -21,4 +21,13 @@ describe('AccountPanel', () => {
     render(<AccountPanel initialScreen="register" />);
     expect(screen.getByRole('heading', { name: 'Создать аккаунт' })).toBeTruthy();
   });
+
+  it('switches between login and registration when the header intent changes', () => {
+    const { rerender } = render(<AccountPanel initialScreen="register" />);
+    expect(screen.getByRole('heading', { name: /Создать аккаунт/i })).toBeTruthy();
+
+    rerender(<AccountPanel initialScreen="login" />);
+
+    expect(screen.getByRole('heading', { name: /Войти/i })).toBeTruthy();
+  });
 });

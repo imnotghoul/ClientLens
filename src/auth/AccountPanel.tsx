@@ -22,6 +22,10 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
   const avatarInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    setScreen(initialScreen);
+  }, [initialScreen]);
+
+  useEffect(() => {
     if (!supabase) return;
     void supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
