@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { KworkAnalyzer } from './analyzers/kwork-analyzer';
+import { ProfileAnalyzer } from './analyzers/profile-analyzer';
 import { AccountPanel } from './auth/AccountPanel';
 import { supabase } from './auth/supabase';
 import { requestAnalysis, type AnalysisRequest } from './api/analyze';
@@ -70,7 +70,7 @@ export default function App() {
 
     if (request.model !== 'gpt-5.6-luna' || !canUseFreeLuna()) {
       const local = {
-        ...new KworkAnalyzer().analyze(request.profile),
+        ...new ProfileAnalyzer().analyze(request.profile),
         analysisMode: 'basic' as const,
         analysisSummary: `AI-анализ стоит ${getAnalysisPrice(request.mode, request.model)} ₽; сейчас сформирован бесплатный базовый отчёт.`,
       };
@@ -88,7 +88,7 @@ export default function App() {
       saveAndOpen(request, result.audit);
     } catch {
       const local = {
-        ...new KworkAnalyzer().analyze(request.profile),
+        ...new ProfileAnalyzer().analyze(request.profile),
         analysisMode: 'basic' as const,
         analysisSummary: 'AI-анализ недоступен: используем бесплатный базовый отчёт.',
       };

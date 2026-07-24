@@ -30,19 +30,19 @@ export function ProfileForm({ onAnalyze, onDemo = () => undefined, notice }: {
       return;
     }
     setError('');
-    onAnalyze({ profile, mode, model, competitors: mode === 'competitive' ? competitors.filter((item) => item.name || item.headline || item.price) : [] });
+    onAnalyze({ profile, mode, model, competitors: mode === 'competitive' ? competitors.filter((item) => item.name || item.headline || item.price || item.profileUrl) : [] });
   };
 
   return <form className="audit-form dark-form" onSubmit={submit}>
-    <div className="eyebrow">Kwork profile intelligence</div>
+    <div className="eyebrow">Анализ профиля фрилансера</div>
     <h1>Увидьте профиль глазами клиента</h1>
     <p className="lead">Выберите глубину анализа, добавьте данные профиля и получите практичный план улучшений.</p>
     {notice ? <p className="analysis-notice" role="status">{notice}</p> : null}
     <div className="mode-grid">{(Object.keys(modeDefaults) as AnalysisMode[]).map((item) => <button type="button" className={mode === item ? 'mode-card active' : 'mode-card'} key={item} onClick={() => setMode(item)}><b>{modeDefaults[item].title}</b><span>{modeDefaults[item].description}</span></button>)}</div>
     <div className="model-row"><span>Модель анализа</span><div>{(Object.keys(aiModels) as AiModel[]).map((item) => <button type="button" className={model === item ? 'model-chip active' : 'model-chip'} key={item} onClick={() => setModel(item)}>{aiModels[item].name}</button>)}</div></div>
     <div className="price-panel"><div><b>{aiModels[model].name} · {modeDefaults[mode].title}</b><span>{model === 'gpt-5.6-luna' ? 'Первый AI-анализ Luna — бесплатно' : 'AI-анализ будет доступен после подключения оплаты'}</span></div><strong>{price} ₽</strong></div>
-    <label className="field wide"><span>Ссылка на Kwork-профиль</span><input value={profile.profileUrl} placeholder="https://kwork.ru/user/..." onChange={(event) => update('profileUrl', event.target.value)} /></label>
-    <button className="text-button" type="button" onClick={() => setManual(!manual)}>{manual ? 'Скрыть ручной ввод' : 'Заполнить вручную'}</button>
+    <label className="field wide"><span>Ссылка на профиль фрилансера</span><input value={profile.profileUrl} placeholder="https://kwork.ru/... или https://fl.ru/..." onChange={(event) => update('profileUrl', event.target.value)} /><small>Поддерживаются публичные ссылки Kwork, FL.ru и Freelance.ru.</small></label>
+    <button className="text-button" type="button" onClick={() => setManual(!manual)}>{manual ? 'Скрыть ручное заполнение' : 'Дополнить данные вручную'}</button>
     {manual && <div className="manual-grid">
       <label className="field"><span>Имя или ник</span><input value={profile.name} onChange={(event) => update('name', event.target.value)} placeholder="Например, Анна" /></label>
       <label className="field"><span>Специализация</span><input value={profile.specialization} onChange={(event) => update('specialization', event.target.value)} placeholder="UX/UI-дизайн" /></label>
@@ -54,7 +54,7 @@ export function ProfileForm({ onAnalyze, onDemo = () => undefined, notice }: {
       <label className="field"><span>Заказов</span><input type="number" value={profile.completedOrders || ''} onChange={(event) => update('completedOrders', Number(event.target.value))} /></label>
       <label className="field wide"><span>Портфолио / кейсы</span><textarea value={profile.portfolio} onChange={(event) => update('portfolio', event.target.value)} /></label>
     </div>}
-    {mode === 'competitive' && <section className="competitors"><b>Конкуренты для сравнения</b><p>Добавьте до трёх профилей вручную — реальный парсинг не используется.</p>{competitors.map((item, index) => <div className="competitor" key={index}><input placeholder="Имя или ссылка" value={item.name} onChange={(event) => updateCompetitor(index, 'name', event.target.value)} /><input placeholder="Заголовок / оффер" value={item.headline} onChange={(event) => updateCompetitor(index, 'headline', event.target.value)} /><input placeholder="Цена или доказательства" value={item.price} onChange={(event) => updateCompetitor(index, 'price', event.target.value)} /><button type="button" className="remove-competitor" aria-label="Удалить конкурента" title="Удалить конкурента" onClick={() => removeCompetitor(index)}>×</button></div>)}{competitors.length < 3 && <button className="text-button" type="button" onClick={() => setCompetitors((old) => [...old, blankCompetitor()])}>+ Добавить конкурента</button>}</section>}
+    {mode === 'competitive' && <section className="competitors"><b>Конкуренты для сравнения</b><p>Добавьте до трёх публичных ссылок. Если страница недоступна, заполните данные конкурента вручную.</p>{competitors.map((item, index) => <div className="competitor" key={index}><input placeholder="Имя конкурента" value={item.name} onChange={(event) => updateCompetitor(index, 'name', event.target.value)} /><input placeholder="https://…" value={item.profileUrl ?? ''} onChange={(event) => updateCompetitor(index, 'profileUrl', event.target.value)} /><input placeholder="Заголовок / оффер" value={item.headline} onChange={(event) => updateCompetitor(index, 'headline', event.target.value)} /><input placeholder="Цена или доказательства" value={item.price} onChange={(event) => updateCompetitor(index, 'price', event.target.value)} /><button type="button" className="remove-competitor" aria-label="Удалить конкурента" title="Удалить конкурента" onClick={() => removeCompetitor(index)}>×</button></div>)}{competitors.length < 3 && <button className="text-button" type="button" onClick={() => setCompetitors((old) => [...old, blankCompetitor()])}>+ Добавить конкурента</button>}</section>}
     {error && <p className="error">{error}</p>}
     <div className="form-actions"><button className="primary" type="submit">Запустить {mode === 'quick' ? 'быстрый' : mode === 'deep' ? 'глубокий' : 'конкурентный'} анализ →</button><button className="secondary" type="button" onClick={onDemo}>Посмотреть демо</button></div>
     <p className="pricing-hint">Базовый анализ без AI остаётся бесплатным при недоступности сервиса.</p>

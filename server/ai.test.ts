@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildFallbackResponse } from './ai';
+import { SYSTEM_PROMPT } from './prompt';
 
 describe('buildFallbackResponse', () => {
+  it('does not use Kwork-only wording in the system prompt', () => {
+    expect(SYSTEM_PROMPT).not.toMatch(/аналитик Kwork-профилей/i);
+  });
+
   it('keeps the collected marketplace in a local fallback report', () => {
     const response = buildFallbackResponse({ title: 'UX-аудит', goal: 'orders' }, 'Базовый анализ', 'FL.ru');
     expect(response.audit.platform).toBe('FL.ru');
