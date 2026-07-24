@@ -4,25 +4,19 @@ import { ProfileAnalyzer } from './analyzers/profile-analyzer';
 import { AccountPanel } from './auth/AccountPanel';
 import { supabase } from './auth/supabase';
 import { requestAnalysis, type AnalysisRequest } from './api/analyze';
+import { AppHeader, type HeaderView } from './components/AppHeader';
 import { Dashboard } from './components/Dashboard';
 import { LegalPage } from './components/LegalPage';
 import { ProfileForm } from './components/ProfileForm';
 import { demoAudit } from './data/demo-report';
 import type { ProfileAudit } from './domain/profile';
 import { getAnalysisPrice } from './domain/pricing';
-import { deleteReport, listReports, saveReport, type SavedReport } from './storage/report-store';
 import { deleteCloudReport, listCloudReports, saveCloudReport } from './storage/cloud-report-store';
+import { deleteReport, listReports, saveReport, type SavedReport } from './storage/report-store';
 import { canUseFreeLuna, consumeFreeLuna } from './storage/usage';
 import { getSavedView, saveView } from './storage/view-store';
 
 type View = 'new' | 'reports' | 'demo' | 'profile' | 'privacy' | 'terms';
-
-const nav: { id: View; icon: string; label: string }[] = [
-  { id: 'new', icon: '✦', label: 'Новый анализ' },
-  { id: 'reports', icon: '▣', label: 'Мои отчёты' },
-  { id: 'demo', icon: '◉', label: 'Демо-анализ' },
-  { id: 'profile', icon: '◌', label: 'Аккаунт' },
-];
 
 export default function App() {
   const [view, setView] = useState<View>(getSavedView);
@@ -31,6 +25,7 @@ export default function App() {
   const [reports, setReports] = useState<SavedReport[]>(listReports());
   const [notice, setNotice] = useState('');
   const [session, setSession] = useState<Session | null>(null);
+  const [authIntent, setAuthIntent] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
     if (!supabase) return;
@@ -64,6 +59,7 @@ export default function App() {
   const analyze = async (request: AnalysisRequest) => {
     if (!session) {
       setNotice('Чтобы запустить анализ, войдите или создайте аккаунт.');
+      setAuthIntent('register');
       setView('profile');
       return;
     }
@@ -103,30 +99,22 @@ export default function App() {
     setAudit(demoAudit());
     setView('demo');
   };
+  const navigate = (next: HeaderView) => {
+    if (next === 'demo') openDemo();
+    else setView(next);
+  };
+  const activeHeaderView: HeaderView = view === 'reports' || view === 'demo' || view === 'profile' ? view : 'new';
 
-  return (
-    <main className="app shell">
-      <aside>
-        <div className="brand"><i>C</i><span>client<span>lens</span></span></div>
-        <div className="workspace">WORKSPACE</div>
-        <nav>
-          {nav.map((item) => (
-            <button key={item.id} className={view === item.id ? 'selected' : ''} onClick={() => item.id === 'demo' ? openDemo() : setView(item.id)}>
-              <span>{item.icon}</span>{item.label}{item.id === 'reports' && reports.length ? <small>{reports.length}</small> : null}
-            </button>
-          ))}
-        </nav>
-        <div className="legal-links"><button type="button" onClick={() => setView('privacy')}>Конфиденциальность</button><button type="button" onClick={() => setView('terms')}>Условия</button></div>
-      </aside>
-      <section className="content">
-        {loading ? <Loading /> : view === 'new' ? <ProfileForm onAnalyze={analyze} onDemo={openDemo} notice={notice} /> : null}
-        {!loading && view === 'reports' ? <Reports reports={reports} onOpen={(report) => { setAudit(report.audit); setView('demo'); }} onDelete={(id) => { deleteReport(id); if (session) void deleteCloudReport(id); setReports(listReports()); }} onNew={() => setView('new')} /> : null}
-        {!loading && view === 'demo' && audit ? <Dashboard audit={audit} onRestart={() => setView('new')} /> : null}
-        {!loading && view === 'profile' ? <><AccountPanel mode="profile" /><AccountPanel mode="settings" /></> : null}
-        {!loading && (view === 'privacy' || view === 'terms') ? <LegalPage kind={view} onBack={() => setView('new')} /> : null}
-      </section>
-    </main>
-  );
+  return <main className="app">
+    <AppHeader activeView={activeHeaderView} reportCount={reports.length} isAuthenticated={Boolean(session)} accountLabel={session?.user.email ?? ''} onNavigate={navigate} onAuth={(intent) => { setAuthIntent(intent); setView('profile'); }} />
+    <section className="content">
+      {loading ? <Loading /> : view === 'new' ? <ProfileForm onAnalyze={analyze} onDemo={openDemo} notice={notice} /> : null}
+      {!loading && view === 'reports' ? <Reports reports={reports} onOpen={(report) => { setAudit(report.audit); setView('demo'); }} onDelete={(id) => { deleteReport(id); if (session) void deleteCloudReport(id); setReports(listReports()); }} onNew={() => setView('new')} /> : null}
+      {!loading && view === 'demo' && audit ? <Dashboard audit={audit} onRestart={() => setView('new')} /> : null}
+      {!loading && view === 'profile' ? session ? <><AccountPanel mode="profile" /><AccountPanel mode="settings" /></> : <AccountPanel initialScreen={authIntent} /> : null}
+      {!loading && (view === 'privacy' || view === 'terms') ? <LegalPage kind={view} onBack={() => setView('new')} /> : null}
+    </section>
+  </main>;
 }
 
 function Loading() {
@@ -134,7 +122,7 @@ function Loading() {
 }
 
 function Reports({ reports, onOpen, onDelete, onNew }: { reports: SavedReport[]; onOpen: (report: SavedReport) => void; onDelete: (id: string) => void; onNew: () => void }) {
-  return <section className="reports-view"><div className="view-head"><div><p className="eyebrow">Локальная история</p><h1>Мои отчёты</h1><p>Можно открыть или удалить любой аудит.</p></div><button className="primary" onClick={onNew}>+ Новый анализ</button></div>{reports.length ? <div className="reports-grid">{reports.map((report) => <article className="report-card" key={report.id}><div><span className="report-mode">{report.mode}</span><h3>{report.title}</h3><small>{new Date(report.createdAt).toLocaleDateString('ru-RU')} · {report.model.replace('gpt-5.6-', '')}</small></div><strong>{report.audit.score}</strong><div><button className="secondary" onClick={() => onOpen(report)}>Открыть</button><button className="icon-button" aria-label="Удалить отчёт" onClick={() => onDelete(report.id)}>×</button></div></article>)}</div> : <Empty title="Отчётов пока нет" text="Запустите первый анализ или посмотрите демо-отчёт." />}</section>;
+  return <section className="reports-view"><div className="view-head"><div><p className="eyebrow">История анализов</p><h1>Мои отчёты</h1><p>Откройте сохранённый аудит или удалите неактуальный.</p></div><button className="primary" onClick={onNew}>+ Новый анализ</button></div>{reports.length ? <div className="reports-grid">{reports.map((report) => <article className="report-card" key={report.id}><div><span className="report-mode">{report.mode}</span><h3>{report.title}</h3><small>{new Date(report.createdAt).toLocaleDateString('ru-RU')} · {report.model.replace('gpt-5.6-', '')}</small></div><strong>{report.audit.score}</strong><div><button className="secondary" onClick={() => onOpen(report)}>Открыть</button><button className="icon-button" aria-label="Удалить отчёт" onClick={() => onDelete(report.id)}>×</button></div></article>)}</div> : <Empty title="Отчётов пока нет" text="Запустите первый анализ или посмотрите демо-отчёт." />}</section>;
 }
 
 function Empty({ title, text }: { title: string; text: string }) {
