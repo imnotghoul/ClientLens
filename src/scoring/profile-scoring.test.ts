@@ -45,4 +45,17 @@ describe('createProfileAudit', () => {
     expect(createProfileAudit(evidenceBased, 'Kwork').score).toBeGreaterThan(createProfileAudit(generic, 'Kwork').score);
     expect(createProfileAudit(generic, 'Kwork').score).toBeLessThan(90);
   });
+
+  it('builds a grammatically correct fallback improvement from profile details', () => {
+    const audit = createProfileAudit({
+      ...sparseProfile,
+      specialization: 'Разработчик сайтов',
+      services: 'Лендинги, Telegram-боты',
+      extra: '',
+    }, 'Kwork');
+
+    expect(audit.improvements.headline).not.toContain('помогаю клиентов');
+    expect(audit.improvements.headline).toContain('Разработчик сайтов');
+    expect(audit.improvements.description).toContain('Лендинги');
+  });
 });

@@ -33,9 +33,10 @@ export function createProfileAudit(input: ProfileInput, platform = 'Kwork'): Pro
   const clientViews: ClientView[] = clientTemplates.map(([label, likes, doubts, reason, action]) => ({ label, likes: present(input.title) ? likes : 'желание быстро разобраться в задаче', doubts: !present(input.portfolio) ? doubts : 'хочет увидеть ещё один похожий кейс', reason, action }));
   const role = input.specialization || 'специалист';
   const audience = input.extra || 'клиентов с понятной задачей';
+  const serviceFocus = input.services.split(/[,;\n]/)[0]?.trim();
   const improvements = {
-    headline: `${role}: помогаю ${audience} получить понятный результат без лишних итераций`,
-    description: `Помогаю ${audience} через ${role.toLowerCase()}. Сначала уточняю задачу и критерии результата, затем показываю понятный план и держу вас в курсе на каждом этапе. В конце вы получаете готовый результат и материалы для дальнейшей работы.`,
+    headline: serviceFocus ? `${role}: ${serviceFocus} для ${audience} — понятный результат без лишних итераций` : `${role}: понятный результат для ${audience} без лишних итераций`,
+    description: `В работе над ${serviceFocus || 'задачей'} сначала уточняю задачу и критерии результата, затем показываю понятный план и держу вас в курсе на каждом этапе. В конце вы получаете готовый результат и материалы для дальнейшей работы.`,
     remove: ['«Качественно и быстро» без примера', '«Индивидуальный подход» без описания процесса', 'Длинный список навыков без результата'],
     add: ['С каким типом задач вы работаете', 'Какой результат получает клиент', 'Один кейс в формате задача → действие → итог'],
     portfolio: 'Добавьте 2–3 кейса: исходная задача, ваше решение, скриншот или ссылка, измеримый итог.',
