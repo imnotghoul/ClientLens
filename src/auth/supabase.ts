@@ -19,6 +19,7 @@ export const normalizeOtp = (value: string): string => value.replace(/\D/g, '').
 export const profileAvatarLetter = (nickname: string): string => nickname.trim().charAt(0).toUpperCase() || 'C';
 export const nicknameErrorMessage = (message: string) => /duplicate|nickname/i.test(message) ? 'Этот ник уже занят. Выберите другой.' : message;
 export const authErrorMessage = (message: string, context: 'login' | 'register' | 'reset' = 'login'): string => {
+  if (/nickname|profiles_nickname/i.test(message)) return 'Этот ник уже занят. Выберите другой.';
   if (/already registered|already exists|duplicate/i.test(message)) return 'Эта почта уже зарегистрирована.';
   if (/invalid login credentials|invalid email or password/i.test(message)) return 'Проверьте почту и пароль.';
   if (/email not confirmed/i.test(message)) return 'Сначала подтвердите почту.';

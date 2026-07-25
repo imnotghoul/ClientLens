@@ -77,6 +77,8 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
       return setMessage('Пароль изменён. Войдите с новым паролем.');
     }
     if (screen === 'register') {
+      const { data: nicknameAvailable, error: nicknameCheckError } = await supabase.rpc('is_nickname_available', { candidate: nickname });
+      if (!nicknameCheckError && nicknameAvailable === false) return setMessage('Этот ник уже занят. Выберите другой.');
       if (!isNicknameValid(nickname)) return setMessage('Ник: 3–24 символа, латинские буквы, цифры или _.');
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { nickname }, emailRedirectTo: `${window.location.origin}/` } });
       if (isAlreadyRegisteredSignUp(data)) return setMessage('Эта почта уже зарегистрирована. Войдите или восстановите пароль.');

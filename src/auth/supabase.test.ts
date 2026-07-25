@@ -5,6 +5,7 @@ describe('profile validation', () => {
   it('explains duplicate email and invalid login errors', () => {
     expect(authErrorMessage('User already registered', 'register')).toMatch(/почт/i);
     expect(authErrorMessage('Invalid login credentials', 'login')).toMatch(/почту и пароль/i);
+    expect(authErrorMessage('duplicate key profiles_nickname_key', 'register')).toMatch(/ник/i);
   });
 
   it('detects Supabase signups that return an existing user without identities', () => {
