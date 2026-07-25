@@ -14,7 +14,7 @@ const app = express();
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: { directives: {
   defaultSrc: ["'self'"],
-  connectSrc: ["'self'", 'https://*.supabase.co'],
+  connectSrc: ["'self'", 'https://*.supabase.co', 'https://api.clientlens.ru', 'wss://api.clientlens.ru'],
   fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
   imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
   objectSrc: ["'none'"],
