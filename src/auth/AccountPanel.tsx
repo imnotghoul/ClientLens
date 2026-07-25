@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { authErrorMessage, isAlreadyRegisteredSignUp, isAllowedAuthRedirect, isNicknameValid, isPasswordRecoveryEvent, isSupabaseConfigured, nicknameErrorMessage, normalizeOtp, profileAvatarLetter, supabase } from './supabase';
+import { authErrorMessage, isAlreadyRegisteredSignUp, isAllowedAuthRedirect, isEmailTaken, isNicknameValid, isPasswordRecoveryEvent, isSupabaseConfigured, nicknameErrorMessage, normalizeOtp, profileAvatarLetter, supabase } from './supabase';
 
 type Screen = 'login' | 'register' | 'confirm' | 'reset' | 'resetConfirm' | 'updatePassword';
 type AccountPanelProps = { mode?: 'profile' | 'settings'; initialScreen?: 'login' | 'register'; onProfileChanged?: () => void };
@@ -77,10 +77,13 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
       return setMessage('Пароль изменён. Войдите с новым паролем.');
     }
     if (screen === 'register') {
+      const normalizedEmail = email.trim().toLowerCase();
+      const { data: emailAvailable, error: emailCheckError } = await supabase.rpc('is_email_available', { candidate: normalizedEmail });
+      if (isEmailTaken({ available: emailAvailable, error: emailCheckError })) return setMessage('Эта почта уже зарегистрирована. Войдите или восстановите пароль.');
       const { data: nicknameAvailable, error: nicknameCheckError } = await supabase.rpc('is_nickname_available', { candidate: nickname });
       if (!nicknameCheckError && nicknameAvailable === false) return setMessage('Этот ник уже занят. Выберите другой.');
       if (!isNicknameValid(nickname)) return setMessage('Ник: 3–24 символа, латинские буквы, цифры или _.');
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { nickname }, emailRedirectTo: `${window.location.origin}/` } });
+      const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { nickname }, emailRedirectTo: `${window.location.origin}/` } });
       if (isAlreadyRegisteredSignUp(data)) return setMessage('Эта почта уже зарегистрирована. Войдите или восстановите пароль.');
       if (error) return setMessage(authErrorMessage(error.message, 'register'));
       setScreen('confirm');

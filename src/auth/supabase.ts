@@ -27,3 +27,4 @@ export const authErrorMessage = (message: string, context: 'login' | 'register' 
   return 'Не удалось выполнить действие. Попробуйте ещё раз.';
 };
 export const isAlreadyRegisteredSignUp = (result: { user?: { identities?: unknown[] } | null } | null | undefined): boolean => Boolean(result?.user && Array.isArray(result.user.identities) && result.user.identities.length === 0);
+export const isEmailTaken = (result: { available: boolean | null; error: unknown } | null | undefined): boolean => Boolean(result && result.error == null && result.available === false);

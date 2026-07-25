@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authErrorMessage, isAlreadyRegisteredSignUp, isAllowedAuthRedirect, isNicknameValid, isPasswordRecoveryEvent, nicknameErrorMessage, normalizeOtp, profileAvatarLetter } from './supabase';
+import { authErrorMessage, isAlreadyRegisteredSignUp, isAllowedAuthRedirect, isEmailTaken, isNicknameValid, isPasswordRecoveryEvent, nicknameErrorMessage, normalizeOtp, profileAvatarLetter } from './supabase';
 
 describe('profile validation', () => {
   it('explains duplicate email and invalid login errors', () => {
@@ -11,6 +11,12 @@ describe('profile validation', () => {
   it('detects Supabase signups that return an existing user without identities', () => {
     expect(isAlreadyRegisteredSignUp({ user: { identities: [] } })).toBe(true);
     expect(isAlreadyRegisteredSignUp({ user: { identities: [{ id: 'new' }] } })).toBe(false);
+  });
+
+  it('detects an email reported as already present by the availability check', () => {
+    expect(isEmailTaken({ available: false, error: null })).toBe(true);
+    expect(isEmailTaken({ available: true, error: null })).toBe(false);
+    expect(isEmailTaken({ available: null, error: new Error('temporary') })).toBe(false);
   });
   it('accepts a safe nickname and rejects spaces or short values', () => {
     expect(isNicknameValid('halid_dev')).toBe(true);
