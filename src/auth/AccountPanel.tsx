@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { isAllowedAuthRedirect, isNicknameValid, isPasswordRecoveryEvent, isSupabaseConfigured, nicknameErrorMessage, normalizeOtp, profileAvatarLetter, supabase } from './supabase';
+import { authErrorMessage, isAlreadyRegisteredSignUp, isAllowedAuthRedirect, isNicknameValid, isPasswordRecoveryEvent, isSupabaseConfigured, nicknameErrorMessage, normalizeOtp, profileAvatarLetter, supabase } from './supabase';
 
-type Screen = 'login' | 'register' | 'confirm' | 'reset' | 'updatePassword';
+type Screen = 'login' | 'register' | 'confirm' | 'reset' | 'resetConfirm' | 'updatePassword';
 type AccountPanelProps = { mode?: 'profile' | 'settings'; initialScreen?: 'login' | 'register'; onProfileChanged?: () => void };
 
 export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProfileChanged }: AccountPanelProps) {
@@ -57,15 +57,30 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
       return setMessage('Пароль обновлён. Войдите с новым паролем.');
     }
     if (screen === 'reset') {
+      const { error: otpError } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+      if (otpError) return setMessage(authErrorMessage(otpError.message, 'reset'));
+      setScreen('resetConfirm');
+      return setMessage('Код отправлен на почту. Введите его и придумайте новый пароль.');
       const origin = window.location.origin;
       if (!isAllowedAuthRedirect(origin)) return setMessage('Небезопасный адрес сайта.');
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo: origin });
+      void origin;
       return setMessage('Если аккаунт существует, письмо уже отправлено.');
+    }
+    if (screen === 'resetConfirm') {
+      if (password.length < 12 || password !== confirmPassword) return setMessage('Новый пароль должен совпадать и содержать не менее 12 символов.');
+      const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+      if (error) return setMessage('Неверный или устаревший код.');
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) return setMessage('Не удалось обновить пароль.');
+      await supabase.auth.signOut();
+      setPassword(''); setConfirmPassword(''); setCode(''); setScreen('login');
+      return setMessage('Пароль изменён. Войдите с новым паролем.');
     }
     if (screen === 'register') {
       if (!isNicknameValid(nickname)) return setMessage('Ник: 3–24 символа, латинские буквы, цифры или _.');
-      const { error } = await supabase.auth.signUp({ email, password, options: { data: { nickname }, emailRedirectTo: `${window.location.origin}/` } });
-      if (error) return setMessage(nicknameErrorMessage(error.message));
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { nickname }, emailRedirectTo: `${window.location.origin}/` } });
+      if (isAlreadyRegisteredSignUp(data)) return setMessage('Эта почта уже зарегистрирована. Войдите или восстановите пароль.');
+      if (error) return setMessage(authErrorMessage(error.message, 'register'));
       setScreen('confirm');
       return setMessage('Код отправлен на почту.');
     }
@@ -76,6 +91,8 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
       return setMessage('Почта подтверждена. Теперь войдите.');
     }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return setMessage(authErrorMessage(error.message, 'login'));
+    return setMessage('Вход выполнен.');
     setMessage(error ? 'Не удалось войти. Проверьте почту и пароль.' : 'Вход выполнен.');
   };
 
@@ -138,6 +155,7 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
   if (!isSupabaseConfigured) return <section className="account-panel"><h1>Подключите Supabase</h1></section>;
   if (screen === 'updatePassword') return <section className="account-panel"><h1>Новый пароль</h1><form onSubmit={submit} className="account-form"><label>Новый пароль<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={12} autoComplete="new-password" /></label><button className="primary">Сохранить пароль</button></form>{message && <p className="analysis-notice">{message}</p>}</section>;
   if (!session) {
+    if (screen === 'resetConfirm') return <section className="account-panel"><p className="eyebrow">Аккаунт ClientLens</p><h1>Восстановить пароль</h1><form onSubmit={submit} className="account-form"><label>Код из письма<input value={code} onChange={(event) => setCode(normalizeOtp(event.target.value))} required maxLength={8} inputMode="numeric" autoComplete="one-time-code" /></label><label>Новый пароль<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={12} autoComplete="new-password" /></label><label>Подтвердите новый пароль<input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={12} autoComplete="new-password" /></label><button className="primary">Сохранить пароль</button></form>{message && <p className="analysis-notice">{message}</p>}</section>;
     const title = screen === 'login' ? 'Войти' : screen === 'register' ? 'Создать аккаунт' : screen === 'confirm' ? 'Подтвердить почту' : 'Сбросить пароль';
     return <section className="account-panel"><p className="eyebrow">Аккаунт ClientLens</p><h1>{title}</h1><form onSubmit={submit} className="account-form">{screen !== 'confirm' && <label>Почта<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" /></label>}{(screen === 'login' || screen === 'register') && <label>Пароль<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={12} autoComplete={screen === 'login' ? 'current-password' : 'new-password'} /></label>}{screen === 'register' && <label>Ник<input value={nickname} onChange={(event) => setNickname(event.target.value)} required autoComplete="username" /></label>}{screen === 'confirm' && <label>Код из письма<input value={code} onChange={(event) => setCode(normalizeOtp(event.target.value))} required maxLength={8} inputMode="numeric" autoComplete="one-time-code" /></label>}<button className="primary">{screen === 'login' ? 'Войти' : screen === 'register' ? 'Отправить код' : screen === 'confirm' ? 'Подтвердить' : 'Отправить письмо'}</button></form>{screen === 'login' && <div className="auth-actions"><button className="text-button" type="button" onClick={() => setScreen('register')}>Создать аккаунт</button><button className="text-button" type="button" onClick={() => setScreen('reset')}>Не помню пароль</button></div>}{screen !== 'login' && <button className="text-button" type="button" onClick={() => setScreen('login')}>У меня уже есть аккаунт</button>}{message && <p className="analysis-notice">{message}</p>}</section>;
   }

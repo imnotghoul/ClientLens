@@ -18,3 +18,11 @@ export const isPasswordRecoveryEvent = (event: string): boolean => event === 'PA
 export const normalizeOtp = (value: string): string => value.replace(/\D/g, '').slice(0, 8);
 export const profileAvatarLetter = (nickname: string): string => nickname.trim().charAt(0).toUpperCase() || 'C';
 export const nicknameErrorMessage = (message: string) => /duplicate|nickname/i.test(message) ? 'Этот ник уже занят. Выберите другой.' : message;
+export const authErrorMessage = (message: string, context: 'login' | 'register' | 'reset' = 'login'): string => {
+  if (/already registered|already exists|duplicate/i.test(message)) return 'Эта почта уже зарегистрирована.';
+  if (/invalid login credentials|invalid email or password/i.test(message)) return 'Проверьте почту и пароль.';
+  if (/email not confirmed/i.test(message)) return 'Сначала подтвердите почту.';
+  if (context === 'reset') return 'Не удалось отправить код. Проверьте почту и попробуйте ещё раз.';
+  return 'Не удалось выполнить действие. Попробуйте ещё раз.';
+};
+export const isAlreadyRegisteredSignUp = (result: { user?: { identities?: unknown[] } | null } | null | undefined): boolean => Boolean(result?.user && Array.isArray(result.user.identities) && result.user.identities.length === 0);
