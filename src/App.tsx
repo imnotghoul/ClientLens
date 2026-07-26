@@ -4,6 +4,7 @@ import { ProfileAnalyzer } from './analyzers/profile-analyzer';
 import { AccountPanel } from './auth/AccountPanel';
 import { toProfilePresentation, type ProfilePresentation } from './auth/profile-presentation';
 import { supabase } from './auth/supabase';
+import { withAvatarCacheBust } from './auth/avatar-url';
 import { requestAnalysis, type AnalysisRequest } from './api/analyze';
 import { AppHeader, type HeaderView } from './components/AppHeader';
 import { Dashboard } from './components/Dashboard';
@@ -42,7 +43,7 @@ export default function App() {
     }
     setIdentityReady(false);
     const { data } = await supabase.from('profiles').select('nickname, avatar_path').eq('id', session.user.id).maybeSingle();
-    const avatarUrl = data?.avatar_path ? supabase.storage.from('avatars').getPublicUrl(data.avatar_path).data.publicUrl : '';
+    const avatarUrl = data?.avatar_path ? withAvatarCacheBust(supabase.storage.from('avatars').getPublicUrl(data.avatar_path).data.publicUrl) : '';
     setProfileIdentity(toProfilePresentation(data, avatarUrl));
     setIdentityReady(true);
   };

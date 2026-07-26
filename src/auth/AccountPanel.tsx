@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { avatarFileExtension, prepareAvatarFile } from './avatar';
+import { withAvatarCacheBust } from './avatar-url';
 import { authErrorMessage, isAlreadyRegisteredSignUp, isAllowedAuthRedirect, isEmailTaken, isNicknameValid, isPasswordRecoveryEvent, isSupabaseConfigured, nicknameErrorMessage, normalizeOtp, profileAvatarLetter, supabase } from './supabase';
 
 type Screen = 'login' | 'register' | 'confirm' | 'reset' | 'resetConfirm' | 'updatePassword';
@@ -42,7 +43,7 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
     void client.from('profiles').select('nickname, avatar_path').eq('id', session.user.id).maybeSingle().then(({ data }) => {
       if (!data) return;
       setNickname(data.nickname ?? '');
-      setAvatar(data.avatar_path ? client.storage.from('avatars').getPublicUrl(data.avatar_path).data.publicUrl : '');
+      setAvatar(data.avatar_path ? withAvatarCacheBust(client.storage.from('avatars').getPublicUrl(data.avatar_path).data.publicUrl) : '');
     });
   }, [session]);
 
@@ -120,7 +121,7 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
     if (error) return setMessage('Не удалось загрузить аватар.');
     const { error: profileError } = await supabase.from('profiles').upsert({ id: session.user.id, avatar_path: path, nickname, updated_at: new Date().toISOString() });
     if (profileError) return setMessage('Аватар загружен, но не удалось сохранить профиль.');
-    setAvatar(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl);
+    setAvatar(withAvatarCacheBust(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl));
     onProfileChanged?.();
     setMessage('Аватар обновлён.');
   };
