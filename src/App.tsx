@@ -9,6 +9,7 @@ import { requestAnalysis, type AnalysisRequest } from './api/analyze';
 import { AppHeader, type HeaderView } from './components/AppHeader';
 import { Dashboard } from './components/Dashboard';
 import { LegalPage, type LegalKind } from './components/LegalPage';
+import { NewcomersPage } from './components/NewcomersPage';
 import { ProfileForm } from './components/ProfileForm';
 import { demoAudit } from './data/demo-report';
 import type { ProfileAudit } from './domain/profile';
@@ -18,7 +19,7 @@ import { saveView } from './storage/view-store';
 import { pathForPublicPage } from './legal/public-pages';
 import { initialViewFromPath } from './legal/initial-view';
 
-type View = 'new' | 'reports' | 'demo' | 'profile' | LegalKind;
+type View = 'new' | 'reports' | 'demo' | 'newcomers' | 'profile' | LegalKind;
 
 const getInitialView = (): View => initialViewFromPath(window.location.pathname);
 
@@ -115,7 +116,7 @@ export default function App() {
     if (next === 'demo') openDemo();
     else setView(next);
   };
-  const activeHeaderView: HeaderView = view === 'reports' || view === 'demo' || view === 'profile' ? view : 'new';
+  const activeHeaderView: HeaderView = view === 'reports' || view === 'demo' || view === 'newcomers' || view === 'profile' ? view : 'new';
 
   return <main className="app">
     <AppHeader activeView={activeHeaderView} reportCount={reports.length} isAuthenticated={Boolean(session)} accountLabel={profileIdentity?.nickname ?? ''} avatarUrl={profileIdentity?.avatarUrl ?? ''} identityReady={identityReady} onNavigate={navigate} onAuth={(intent) => { setAuthIntent(intent); setView('profile'); }} />
@@ -123,6 +124,7 @@ export default function App() {
       {loading ? <Loading /> : view === 'new' ? <ProfileForm onAnalyze={analyze} onDemo={openDemo} notice={notice} /> : null}
       {!loading && view === 'reports' ? <Reports reports={reports} onOpen={(report) => { setAudit(report.audit); setView('demo'); }} onDelete={(id) => { deleteReport(id); if (session) void deleteCloudReport(id); setReports(listReports()); }} onNew={() => setView('new')} /> : null}
       {!loading && view === 'demo' && audit ? <Dashboard audit={audit} onRestart={() => setView('new')} /> : null}
+      {!loading && view === 'newcomers' ? <NewcomersPage onAnalyze={() => setView('new')} /> : null}
       {!loading && view === 'profile' ? session ? <><AccountPanel mode="profile" onProfileChanged={refreshProfileIdentity} /><AccountPanel mode="settings" onProfileChanged={refreshProfileIdentity} /></> : <AccountPanel initialScreen={authIntent} /> : null}
       {!loading && (view === 'privacy' || view === 'terms' || view === 'pricing' || view === 'offer' || view === 'contacts') ? <LegalPage kind={view} onBack={() => setView('new')} /> : null}
     </section>

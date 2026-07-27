@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export type HeaderView = 'new' | 'reports' | 'demo' | 'profile';
+export type HeaderView = 'new' | 'reports' | 'demo' | 'newcomers' | 'profile';
 
 type AppHeaderProps = {
   activeView: HeaderView;
@@ -17,6 +17,7 @@ const links: { id: Exclude<HeaderView, 'profile'>; label: string }[] = [
   { id: 'new', label: 'Новый анализ' },
   { id: 'reports', label: 'Мои отчёты' },
   { id: 'demo', label: 'Демо-анализ' },
+  { id: 'newcomers', label: 'Новичкам' },
 ];
 
 export function AppHeader({ activeView, reportCount, isAuthenticated, accountLabel, avatarUrl = '', identityReady = false, onNavigate, onAuth }: AppHeaderProps) {
