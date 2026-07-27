@@ -85,7 +85,10 @@ export function registerYookassaRoutes(app: Express): void {
     const client = adminClient();
     if (!client) return response.status(503).json({ error: 'Баланс временно недоступен.' });
     const { data, error } = await client.from('wallets').select('balance').eq('user_id', userId).maybeSingle();
-    if (error) return response.status(500).json({ error: 'Не удалось загрузить баланс.' });
+    if (error) {
+      console.error('[wallet] load failed', { userId, code: error.code, message: error.message, details: error.details, hint: error.hint });
+      return response.status(500).json({ error: 'Не удалось загрузить баланс.' });
+    }
     return response.json({ balance: Number(data?.balance ?? 0) });
   });
 
@@ -142,7 +145,10 @@ export function registerYookassaRoutes(app: Express): void {
       }
 
       const { data, error } = await client.from('wallets').select('balance').eq('user_id', userId).maybeSingle();
-      if (error) return response.status(500).json({ error: 'Не удалось загрузить баланс.' });
+      if (error) {
+        console.error('[wallet] sync load failed', { userId, code: error.code, message: error.message, details: error.details, hint: error.hint });
+        return response.status(500).json({ error: 'Не удалось загрузить баланс.' });
+      }
       return response.json({ balance: Number(data?.balance ?? 0), credited });
     } catch (error) {
       console.error('[wallet] sync failed', error);
