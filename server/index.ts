@@ -10,8 +10,10 @@ import { compareProfiles } from '../src/scoring/competitive-analysis';
 import type { ProfileInput } from '../src/domain/profile';
 import { isProduction, serveProductionFiles } from './production';
 import { registerYookassaRoutes } from './yookassa';
+import { configureTrustProxy } from './proxy';
 
 const app = express();
+configureTrustProxy(app);
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: { directives: {
   defaultSrc: ["'self'"],
