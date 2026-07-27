@@ -1,7 +1,7 @@
 import { emptyProfile, type ProfileAudit, type ProfileInput } from '../src/domain/profile';
 import { createProfileAudit } from '../src/scoring/profile-scoring';
 import { SYSTEM_PROMPT } from './prompt';
-import { AI_JSON_SCHEMA, parseAiReport } from './schema';
+import { AI_JSON_SCHEMA, explainAiReportFailure, parseAiReport } from './schema';
 
 export type AnalysisResponse = { audit: ProfileAudit; mode: 'ai' | 'basic'; notice?: string };
 type AnalyzeOptions = { model?: 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol'; platform?: string };
@@ -78,6 +78,7 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
         ? Object.fromEntries(Object.entries(parsedContent as Record<string, unknown>).map(([key, value]) => [key, Array.isArray(value) ? `array:${value.length}` : typeof value]))
         : { type: typeof parsedContent };
       console.error('[AI] report validation failed', { keys: Object.keys(shape), shape });
+      console.error('[AI] validation issues', explainAiReportFailure(parsedContent));
     }
     if (!report) return buildFallbackResponse(profile, 'AI вернул неполный отчёт, поэтому показан базовый анализ.', platform);
     const local = createProfileAudit(profile, platform);

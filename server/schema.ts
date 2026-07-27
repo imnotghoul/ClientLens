@@ -49,4 +49,26 @@ export const parseAiReport = (value: unknown): AiReport | null => {
   const parsed = aiReportSchema.safeParse(candidate);
   return parsed.success ? parsed.data : null;
 };
+
+export const explainAiReportFailure = (value: unknown): Array<{ path: string; code: string; message: string }> => {
+  const unwrapped = typeof value === 'string' ? unwrapJson(value) : value;
+  if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) {
+    return [{ path: '', code: 'invalid_type', message: 'Response is not a JSON object' }];
+  }
+  const candidate = { ...(unwrapped as Record<string, unknown>) };
+  const limits: Record<string, number> = {
+    clientPerspectives: 5, topProblems: 5, quickWins: 5, oneDayFixes: 5,
+    highImpactFixes: 3, phrasesToRemove: 5, phrasesToAdd: 5,
+    kworkRecommendations: 4, portfolioRecommendations: 4,
+    pricingRecommendations: 4, missingDataWarnings: 5,
+  };
+  for (const [key, limit] of Object.entries(limits)) {
+    if (Array.isArray(candidate[key])) candidate[key] = candidate[key].slice(0, limit);
+  }
+  if (typeof candidate.orderProbability === 'string') {
+    candidate.orderProbability = probabilityMap[candidate.orderProbability.trim().toLowerCase()] ?? candidate.orderProbability;
+  }
+  const parsed = aiReportSchema.safeParse(candidate);
+  return parsed.success ? [] : parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), code: issue.code, message: issue.message }));
+};
 export const AI_JSON_SCHEMA = { type: 'object', additionalProperties: false, required: Object.keys(aiReportSchema.shape), properties: { overallSummary: { type: 'string' }, mainBarrier: { type: 'string' }, orderProbability: { type: 'string', enum: ['Низкая', 'Средняя', 'Высокая'] }, trustLevel: { type: 'string' }, clientPerspectives: { type: 'array', minItems: 5, maxItems: 5, items: { type: 'object', additionalProperties: false, required: ['label', 'likes', 'doubts', 'reason', 'action'], properties: { label: { type: 'string' }, likes: { type: 'string' }, doubts: { type: 'string' }, reason: { type: 'string' }, action: { type: 'string' } } } }, topProblems: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['title', 'description'], properties: { title: { type: 'string' }, description: { type: 'string' } } } }, quickWins: { type: 'array', items: { type: 'string' } }, oneDayFixes: { type: 'array', items: { type: 'string' } }, highImpactFixes: { type: 'array', items: { type: 'string' } }, improvedHeadline: { type: 'string' }, improvedDescription: { type: 'string' }, phrasesToRemove: { type: 'array', items: { type: 'string' } }, phrasesToAdd: { type: 'array', items: { type: 'string' } }, kworkRecommendations: { type: 'array', items: { type: 'string' } }, portfolioRecommendations: { type: 'array', items: { type: 'string' } }, pricingRecommendations: { type: 'array', items: { type: 'string' } }, missingDataWarnings: { type: 'array', items: { type: 'string' } } } } as const;
