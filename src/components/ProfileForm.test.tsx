@@ -22,9 +22,20 @@ describe('ProfileForm', () => {
     expect(screen.getByPlaceholderText('https://…')).toBeTruthy();
   });
 
-  it('does not advertise a free Luna request', () => {
-    render(<ProfileForm onAnalyze={vi.fn()} />);
-    expect(screen.queryByText(/Первый AI-анализ Luna.*бесплатно/i)).toBeNull();
-    expect(screen.getByText('AI-анализ через OpenRouter')).toBeTruthy();
+  it('advertises the free Luna price only for a first quick Luna analysis', () => {
+    render(<ProfileForm onAnalyze={vi.fn()} freeQuickLunaAvailable />);
+    const price = () => document.querySelector('.price-panel strong')?.textContent;
+    const freeCopy = 'Первый быстрый анализ Luna — бесплатно';
+
+    expect(price()).not.toMatch(/^0/);
+    expect(screen.queryByText(freeCopy)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /быстрый анализ/i }));
+    expect(price()).toMatch(/^0/);
+    expect(screen.getByText(freeCopy)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Terra' }));
+    expect(price()).toMatch(/^69/);
+    expect(screen.queryByText(freeCopy)).toBeNull();
   });
 });

@@ -25,6 +25,15 @@ describe('AppHeader', () => {
     expect(onNavigate).toHaveBeenCalledWith('reports');
   });
 
+  it('shows the newcomers tab and navigates to it for guests', () => {
+    const onNavigate = vi.fn();
+
+    render(<AppHeader activeView="new" reportCount={0} isAuthenticated={false} accountLabel="" onNavigate={onNavigate} onAuth={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Новичкам' }));
+    expect(onNavigate).toHaveBeenCalledWith('newcomers');
+  });
+
   it('shows an account trigger with the user initial for signed-in users', () => {
     render(<AppHeader activeView="reports" reportCount={0} isAuthenticated identityReady accountLabel="aegis" avatarUrl="" onNavigate={vi.fn()} onAuth={vi.fn()} />);
 
