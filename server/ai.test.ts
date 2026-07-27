@@ -85,7 +85,7 @@ describe('buildFallbackResponse', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
     expect(JSON.parse(String(init.body)).model).toBe('openai/gpt-5.6-luna');
     expect(JSON.parse(String(init.body)).response_format.type).toBe('json_schema');
-    expect(JSON.parse(String(init.body)).max_tokens).toBe(5000);
+    expect(JSON.parse(String(init.body)).max_tokens).toBe(6000);
   });
 
   it('falls back when OpenRouter returns an error', async () => {
@@ -142,15 +142,18 @@ describe('buildFallbackResponse', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('logs the response shape when validation rejects a paid AI response', async () => {
+  it('completes a partial paid AI response instead of charging and showing basic mode', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ overallSummary: 'ok' }) } }] }), { status: 200 })));
 
     const response = await analyzeWithAi({ ...emptyProfile, title: 'Разработчик', description: 'Делаю сайты', goal: 'orders' });
 
-    expect(response.mode).toBe('basic');
-    expect(errorSpy).toHaveBeenCalledWith('[AI] report validation failed', expect.objectContaining({ keys: ['overallSummary'] }));
+    expect(response.mode).toBe('ai');
+    expect(response.audit.analysisMode).toBe('ai');
+    expect(response.audit.clientViews).toHaveLength(5);
+    expect(response.audit.issues.length).toBeGreaterThanOrEqual(3);
+    expect(errorSpy).not.toHaveBeenCalledWith('[AI] report validation failed', expect.anything());
     errorSpy.mockRestore();
   });
 });

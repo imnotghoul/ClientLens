@@ -22,15 +22,39 @@ const asList = (value: unknown, fallback: string[], min: number): string[] => {
 
 const completeAiPayload = (value: unknown, local: ProfileAudit): Partial<AiReport> => {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  const perspectives = Array.isArray(source.clientPerspectives) ? source.clientPerspectives : [];
+  const isTextValue = (item: unknown): item is string => typeof item === 'string' && item.trim().length > 0;
+  const perspectives = Array.isArray(source.clientPerspectives)
+    ? source.clientPerspectives
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+      .map((item) => ({
+        label: isTextValue(item.label) ? item.label.trim().slice(0, 80) : '',
+        likes: isTextValue(item.likes) ? item.likes.trim().slice(0, 500) : '',
+        doubts: isTextValue(item.doubts) ? item.doubts.trim().slice(0, 500) : '',
+        reason: isTextValue(item.reason) ? item.reason.trim().slice(0, 500) : '',
+        action: isTextValue(item.action) ? item.action.trim().slice(0, 500) : '',
+      }))
+      .filter((item) => Object.values(item).every(isTextValue))
+    : [];
+  const validProblems = Array.isArray(source.topProblems)
+    ? source.topProblems
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+      .map((item) => ({ title: isTextValue(item.title) ? item.title.trim().slice(0, 120) : '', description: isTextValue(item.description) ? item.description.trim().slice(0, 500) : '' }))
+      .filter((item) => isTextValue(item.title) && isTextValue(item.description))
+    : [];
   const fallbackPerspectives = local.clientViews.length ? local.clientViews : [{ label: 'Клиент', likes: 'Видит профиль', doubts: 'Нужны дополнительные доказательства', reason: 'Сравнивает варианты', action: 'Задаёт уточняющий вопрос' }];
+  const completePerspectives = [...perspectives, ...fallbackPerspectives];
+  while (completePerspectives.length < 5) completePerspectives.push(fallbackPerspectives[completePerspectives.length % fallbackPerspectives.length]);
+  // A provider may return an English label (or an unexpected value) even
+  // when the JSON shape is otherwise usable. Keep the report valid rather
+  // than discarding the whole paid response because of one enum field.
+  const orderProbability: AiReport['orderProbability'] = local.likelihood;
   return {
     overallSummary: asText(source.overallSummary, local.barrier.description),
     mainBarrier: asText(source.mainBarrier, local.barrier.title),
-    orderProbability: source.orderProbability as AiReport['orderProbability'] ?? local.likelihood,
+    orderProbability,
     trustLevel: asText(source.trustLevel, `Уровень доверия: ${local.trust}/100`),
-    clientPerspectives: [...perspectives, ...fallbackPerspectives].slice(0, 5),
-    topProblems: Array.isArray(source.topProblems) && source.topProblems.length >= 3 ? source.topProblems : local.issues.slice(0, 5),
+    clientPerspectives: completePerspectives.slice(0, 5),
+    topProblems: validProblems.length >= 3 ? validProblems.slice(0, 5) : local.issues.slice(0, 5),
     quickWins: asList(source.quickWins, local.quickWins, 3), oneDayFixes: asList(source.oneDayFixes, local.oneDay, 2), highImpactFixes: asList(source.highImpactFixes, [local.maximumEffect], 1),
     improvedHeadline: asText(source.improvedHeadline, local.improvements.headline), improvedDescription: asText(source.improvedDescription, local.improvements.description),
     phrasesToRemove: asList(source.phrasesToRemove, local.improvements.remove, 0), phrasesToAdd: asList(source.phrasesToAdd, local.improvements.add, 0),
@@ -64,9 +88,10 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
         ],
         response_format: { type: 'json_schema', json_schema: { name: 'freelance_profile_audit', strict: true, schema: AI_JSON_SCHEMA } },
         // The structured report contains five client perspectives plus four
-        // recommendation groups. 2600 tokens can truncate the JSON before
-        // the closing brace, which then forces a paid request into fallback.
-        max_tokens: 5000,
+        // recommendation groups. Keep enough room for a complete JSON object;
+        // the prompt/schema keep each field compact so paid requests do not
+        // silently fall back just because the response was too verbose.
+        max_tokens: 6000,
       }),
     };
     let response: Response | undefined;
