@@ -21,4 +21,10 @@ describe('ProfileForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /конкурентный анализ/i }));
     expect(screen.getByPlaceholderText('https://…')).toBeTruthy();
   });
+
+  it('does not advertise a free Luna request', () => {
+    render(<ProfileForm onAnalyze={vi.fn()} />);
+    expect(screen.queryByText(/Первый AI-анализ Luna.*бесплатно/i)).toBeNull();
+    expect(screen.getByText('AI-анализ через OpenRouter')).toBeTruthy();
+  });
 });

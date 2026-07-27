@@ -12,10 +12,8 @@ import { LegalPage, type LegalKind } from './components/LegalPage';
 import { ProfileForm } from './components/ProfileForm';
 import { demoAudit } from './data/demo-report';
 import type { ProfileAudit } from './domain/profile';
-import { getAnalysisPrice } from './domain/pricing';
 import { deleteCloudReport, listCloudReports, saveCloudReport } from './storage/cloud-report-store';
 import { deleteReport, listReports, saveReport, type SavedReport } from './storage/report-store';
-import { canUseFreeLuna, consumeFreeLuna } from './storage/usage';
 import { saveView } from './storage/view-store';
 import { pathForPublicPage } from './legal/public-pages';
 import { initialViewFromPath } from './legal/initial-view';
@@ -90,22 +88,10 @@ export default function App() {
       return;
     }
 
-    if (request.model !== 'gpt-5.6-luna' || !canUseFreeLuna()) {
-      const local = {
-        ...new ProfileAnalyzer().analyze(request.profile),
-        analysisMode: 'basic' as const,
-        analysisSummary: `AI-анализ стоит ${getAnalysisPrice(request.mode, request.model)} ₽; сейчас сформирован бесплатный базовый отчёт.`,
-      };
-      setNotice(local.analysisSummary);
-      saveAndOpen(request, local);
-      return;
-    }
-
     setNotice('');
     setLoading(true);
     try {
       const result = await requestAnalysis(request, session.access_token);
-      if (result.mode === 'ai') consumeFreeLuna();
       if (result.notice) setNotice(result.notice);
       saveAndOpen(request, result.audit);
     } catch {

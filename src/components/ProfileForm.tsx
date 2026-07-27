@@ -40,7 +40,7 @@ export function ProfileForm({ onAnalyze, onDemo = () => undefined, notice }: {
     {notice ? <p className="analysis-notice" role="status">{notice}</p> : null}
     <div className="mode-grid">{(Object.keys(modeDefaults) as AnalysisMode[]).map((item) => <button type="button" className={mode === item ? 'mode-card active' : 'mode-card'} key={item} onClick={() => setMode(item)}><b>{modeDefaults[item].title}</b><span>{modeDefaults[item].description}</span></button>)}</div>
     <div className="model-row"><span>Модель анализа</span><div>{(Object.keys(aiModels) as AiModel[]).map((item) => <button type="button" className={model === item ? 'model-chip active' : 'model-chip'} key={item} onClick={() => setModel(item)}>{aiModels[item].name}</button>)}</div></div>
-    <div className="price-panel"><div><b>{aiModels[model].name} · {modeDefaults[mode].title}</b><span>{model === 'gpt-5.6-luna' ? 'Первый AI-анализ Luna — бесплатно' : 'AI-анализ будет доступен после подключения оплаты'}</span></div><strong>{price} ₽</strong></div>
+    <div className="price-panel"><div><b>{aiModels[model].name} · {modeDefaults[mode].title}</b><span>AI-анализ через OpenRouter</span></div><strong>{price} ₽</strong></div>
     <label className="field wide"><span>Ссылка на профиль фрилансера</span><input value={profile.profileUrl} placeholder="https://kwork.ru/... или https://fl.ru/..." onChange={(event) => update('profileUrl', event.target.value)} /><small>Поддерживаются публичные ссылки Kwork, FL.ru и Freelance.ru.</small></label>
     <button className="text-button" type="button" onClick={() => setManual(!manual)}>{manual ? 'Скрыть ручное заполнение' : 'Дополнить данные вручную'}</button>
     {manual && <div className="manual-grid">
