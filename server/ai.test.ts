@@ -69,6 +69,7 @@ describe('buildFallbackResponse', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
     expect(JSON.parse(String(init.body)).model).toBe('openai/gpt-5.6-luna');
     expect(JSON.parse(String(init.body)).response_format.type).toBe('json_schema');
+    expect(JSON.parse(String(init.body)).max_tokens).toBe(5000);
   });
 
   it('falls back when OpenRouter returns an error', async () => {

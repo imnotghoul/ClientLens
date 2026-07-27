@@ -39,7 +39,10 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
           { role: 'user', content: `Профиль фрилансера на ${platform} для анализа:\n${JSON.stringify(profile)}` },
         ],
         response_format: { type: 'json_schema', json_schema: { name: 'freelance_profile_audit', strict: true, schema: AI_JSON_SCHEMA } },
-        max_tokens: 2600,
+        // The structured report contains five client perspectives plus four
+        // recommendation groups. 2600 tokens can truncate the JSON before
+        // the closing brace, which then forces a paid request into fallback.
+        max_tokens: 5000,
       }),
     };
     let response: Response | undefined;
