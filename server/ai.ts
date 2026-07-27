@@ -45,7 +45,11 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
       }),
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`AI request failed: ${response.status}`);
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      console.error(`[AI] request failed: ${response.status} ${response.statusText}`, errorBody.slice(0, 500));
+      throw new Error(`AI request failed: ${response.status}`);
+    }
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string | null } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || !content.trim()) throw new Error('AI returned an empty response');
@@ -54,7 +58,8 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
     const local = createProfileAudit(profile, platform);
     const audit: ProfileAudit = { ...local, analysisMode: 'ai', analysisSummary: report.overallSummary, barrier: { title: report.mainBarrier, description: report.overallSummary }, likelihood: report.orderProbability, trustLabel: report.trustLevel, issues: report.topProblems, quickWins: report.quickWins, oneDay: report.oneDayFixes, maximumEffect: report.highImpactFixes[0], clientViews: report.clientPerspectives, missingDataWarnings: report.missingDataWarnings, improvements: { ...local.improvements, headline: report.improvedHeadline, description: report.improvedDescription, remove: report.phrasesToRemove, add: report.phrasesToAdd, portfolio: report.portfolioRecommendations.join(' '), price: report.pricingRecommendations.join(' '), structure: report.kworkRecommendations.join(' ') } };
     return { audit, mode: 'ai' };
-  } catch {
+  } catch (error) {
+    console.error('[AI] analysis unavailable:', error instanceof Error ? error.message : String(error));
     return buildFallbackResponse(profile, 'AI-анализ временно недоступен: используется базовый анализ профиля.', platform);
   } finally {
     clearTimeout(timeout);
