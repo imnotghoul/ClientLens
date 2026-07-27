@@ -12,8 +12,10 @@ describe('newcomer guides', () => {
       expect(guide.problem).toEqual(expect.any(String));
       expect(guide.fixes.length).toBeGreaterThanOrEqual(3);
       expect(guide.checklist.length).toBeGreaterThanOrEqual(3);
-      guide.example && expect(guide.example.before).toEqual(expect.any(String));
-      guide.example && expect(guide.example.after).toEqual(expect.any(String));
+      if (guide.example) {
+        expect(guide.example.before).toEqual(expect.any(String));
+        expect(guide.example.after).toEqual(expect.any(String));
+      }
     });
   });
 });
