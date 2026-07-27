@@ -51,10 +51,29 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
 
   useEffect(() => {
     if (!session) return;
-    void fetch('/api/wallet', { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((response) => response.ok ? response.json() as Promise<{ balance?: number }> : null)
-      .then((data) => { if (data) setBalance(Number(data.balance ?? 0)); })
-      .catch(() => undefined);
+    let cancelled = false;
+    const refreshWallet = async (sync: boolean) => {
+      const endpoint = sync ? '/api/wallet/sync' : '/api/wallet';
+      const response = await fetch(endpoint, { method: sync ? 'POST' : 'GET', headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (!response.ok) throw new Error('wallet request failed');
+      const data = await response.json() as { balance?: number };
+      if (!cancelled) setBalance(Number(data.balance ?? 0));
+      return Number(data.balance ?? 0);
+    };
+    void refreshWallet(true).catch(() => refreshWallet(false).catch(() => undefined));
+    const pending = sessionStorage.getItem('clientlens_payment_pending') === '1';
+    if (!pending) return () => { cancelled = true; };
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      void refreshWallet(true).then((value) => {
+        if (value > 0 || attempts >= 12) {
+          sessionStorage.removeItem('clientlens_payment_pending');
+          window.clearInterval(timer);
+        }
+      }).catch(() => { if (attempts >= 12) window.clearInterval(timer); });
+    }, 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [session]);
 
   const topUp = async (amount: number) => {
@@ -67,6 +86,7 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
       });
       const data = await response.json() as { confirmationUrl?: string; error?: string };
       if (!response.ok || !data.confirmationUrl) return setPaymentMessage(data.error ?? 'Не удалось создать платёж.');
+      sessionStorage.setItem('clientlens_payment_pending', '1');
       window.location.assign(data.confirmationUrl);
     } catch { setPaymentMessage('Не удалось связаться с платёжным сервисом.'); }
   };

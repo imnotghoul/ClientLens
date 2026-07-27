@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTopUpAmount, paymentConfirmationUrl, yookassaAuthHeader } from './yookassa';
+import { parseTopUpAmount, paymentConfirmationUrl, paymentCreditDetails, yookassaAuthHeader } from './yookassa';
 
 describe('yookassa helpers', () => {
   it('accepts only supported top-up amounts', () => {
@@ -17,5 +17,13 @@ describe('yookassa helpers', () => {
 
   it('uses the configured return URL', () => {
     expect(paymentConfirmationUrl()).toMatch(/^https:\/\//);
+  });
+
+  it('accepts only successful payments with trusted metadata and a positive amount', () => {
+    expect(paymentCreditDetails({ id: 'pay-1', status: 'succeeded', amount: { value: '100.00' }, metadata: { user_id: 'user-1' } }))
+      .toEqual({ paymentId: 'pay-1', userId: 'user-1', amount: 100 });
+    expect(paymentCreditDetails({ id: 'pay-2', status: 'pending', amount: { value: '100.00' }, metadata: { user_id: 'user-1' } })).toBeNull();
+    expect(paymentCreditDetails({ id: 'pay-3', status: 'succeeded', amount: { value: '0' }, metadata: { user_id: 'user-1' } })).toBeNull();
+    expect(paymentCreditDetails({ id: 'pay-4', status: 'succeeded', amount: { value: '100.00' } })).toBeNull();
   });
 });

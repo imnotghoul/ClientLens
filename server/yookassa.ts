@@ -5,7 +5,9 @@ import { createServerSupabaseClient } from './supabase';
 
 const YOOKASSA_API = 'https://api.yookassa.ru/v3';
 const TOP_UP_AMOUNTS = new Set([100, 300, 500, 1000]);
-type YooKassaResponse = { id?: string; status?: string; amount?: { value?: string }; confirmation?: { confirmation_url?: string }; metadata?: Record<string, string>; description?: string };
+type YooKassaResponse = { id?: string; status?: string; amount?: { value?: string }; confirmation?: { confirmation_url?: string }; metadata?: Record<string, string>; description?: string; created_at?: string };
+type YooKassaListResponse = { items?: YooKassaResponse[] };
+type PaymentCreditDetails = { paymentId: string; userId: string; amount: number };
 
 export function parseTopUpAmount(value: unknown): number | null {
   const amount = typeof value === 'number' ? value : typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN;
@@ -20,13 +22,22 @@ export function paymentConfirmationUrl(): string {
   return process.env.YOOKASSA_RETURN_URL || 'https://clientlens.ru/';
 }
 
+export function paymentCreditDetails(payment: YooKassaResponse): PaymentCreditDetails | null {
+  const paymentId = typeof payment.id === 'string' ? payment.id : '';
+  const userId = typeof payment.metadata?.user_id === 'string' ? payment.metadata.user_id : '';
+  const amount = Number(payment.amount?.value);
+  if (payment.status !== 'succeeded' || !paymentId || !userId || !Number.isFinite(amount) || amount <= 0) return null;
+  const supportedAmount = parseTopUpAmount(amount);
+  return supportedAmount ? { paymentId, userId, amount: supportedAmount } : null;
+}
+
 function adminClient(): SupabaseClient | null {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
   return url && key ? createServerSupabaseClient(url, key) : null;
 }
 
-async function yookassaRequest(path: string, init?: RequestInit): Promise<YooKassaResponse> {
+async function yookassaRequest<T extends YooKassaResponse | YooKassaListResponse = YooKassaResponse>(path: string, init?: RequestInit): Promise<T> {
   const shopId = process.env.YOOKASSA_SHOP_ID;
   const secret = process.env.YOOKASSA_SECRET_KEY;
   if (!shopId || !secret) throw new Error('ЮKassa не настроена на сервере.');
@@ -34,9 +45,32 @@ async function yookassaRequest(path: string, init?: RequestInit): Promise<YooKas
     ...init,
     headers: { Authorization: yookassaAuthHeader(shopId, secret), 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   });
-  const body = await response.json().catch(() => ({})) as YooKassaResponse;
+  const body = await response.json().catch(() => ({})) as T;
   if (!response.ok) throw new Error(typeof body?.description === 'string' ? body.description : `YooKassa HTTP ${response.status}`);
   return body;
+}
+
+async function creditPayment(payment: YooKassaResponse, client: SupabaseClient): Promise<boolean> {
+  const details = paymentCreditDetails(payment);
+  if (!details) return false;
+  const { error } = await client.rpc('credit_yookassa_payment', {
+    p_payment_id: details.paymentId,
+    p_user_id: details.userId,
+    p_amount: details.amount,
+  });
+  if (error) throw error;
+  return true;
+}
+
+async function savePendingPayment(payment: YooKassaResponse, userId: string, amount: number, client: SupabaseClient): Promise<void> {
+  if (!payment.id) return;
+  const { error } = await client.from('payment_orders').upsert({
+    yookassa_payment_id: payment.id,
+    user_id: userId,
+    amount,
+    status: 'pending',
+  }, { onConflict: 'yookassa_payment_id', ignoreDuplicates: true });
+  if (error) console.error('[wallet] failed to save pending payment', error.message);
 }
 
 async function authenticatedUser(request: Request): Promise<string | null> {
@@ -73,9 +107,46 @@ export function registerYookassaRoutes(app: Express): void {
           metadata: { user_id: userId, amount_rub: String(amount) },
         }),
       });
+      const client = adminClient();
+      if (client) await savePendingPayment(payment, userId, amount, client);
       return response.json({ paymentId: payment.id, confirmationUrl: payment.confirmation?.confirmation_url });
     } catch (error) {
       return response.status(502).json({ error: error instanceof Error ? error.message : 'Не удалось создать платеж.' });
+    }
+  });
+
+  app.post('/api/wallet/sync', async (request, response) => {
+    try {
+      const userId = await authenticatedUser(request);
+      if (!userId) return response.status(401).json({ error: 'Войдите в аккаунт.' });
+      const client = adminClient();
+      if (!client) return response.status(503).json({ error: 'Баланс временно недоступен.' });
+
+      const pending = await client.from('payment_orders').select('yookassa_payment_id').eq('user_id', userId).eq('status', 'pending').limit(20);
+      const pendingIds = (pending.data ?? []).map((row: { yookassa_payment_id?: string }) => row.yookassa_payment_id).filter((id): id is string => Boolean(id));
+      const candidates = new Map<string, YooKassaResponse>();
+      for (const paymentId of pendingIds) {
+        const payment = await yookassaRequest(`/payments/${encodeURIComponent(paymentId)}`);
+        if (payment.id) candidates.set(payment.id, payment);
+      }
+
+      const listed = await yookassaRequest<YooKassaListResponse>('/payments?status=succeeded&limit=100');
+      for (const payment of listed.items ?? []) {
+        if (payment.id && payment.metadata?.user_id === userId) candidates.set(payment.id, payment);
+      }
+
+      let credited = 0;
+      for (const payment of candidates.values()) {
+        const details = paymentCreditDetails(payment);
+        if (details?.userId === userId && await creditPayment(payment, client)) credited += details.amount;
+      }
+
+      const { data, error } = await client.from('wallets').select('balance').eq('user_id', userId).maybeSingle();
+      if (error) return response.status(500).json({ error: 'Не удалось загрузить баланс.' });
+      return response.json({ balance: Number(data?.balance ?? 0), credited });
+    } catch (error) {
+      console.error('[wallet] sync failed', error);
+      return response.status(502).json({ error: 'Не удалось синхронизировать платёж.' });
     }
   });
 
