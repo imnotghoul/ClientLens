@@ -15,7 +15,7 @@ import { demoAudit } from './data/demo-report';
 import type { ProfileAudit } from './domain/profile';
 import { deleteCloudReport, listCloudReports, saveCloudReport } from './storage/cloud-report-store';
 import { deleteReport, listReports, saveReport, type SavedReport } from './storage/report-store';
-import { hasUsedFreeQuickLuna, markFreeQuickLunaUsed } from './storage/free-analysis-store';
+import { hasUsedFreeQuickLuna, markFreeQuickLunaUsed, shouldConsumeFreeQuickLuna } from './storage/free-analysis-store';
 import { saveView } from './storage/view-store';
 import { pathForPublicPage } from './legal/public-pages';
 import { initialViewFromPath } from './legal/initial-view';
@@ -96,7 +96,7 @@ export default function App() {
       const result = await requestAnalysis(request, session.access_token);
       if (result.notice) setNotice(result.notice);
       saveAndOpen(request, result.audit);
-      if (request.mode === 'quick' && request.model === 'gpt-5.6-luna' && !hasUsedFreeQuickLuna(session.user.id)) {
+      if (shouldConsumeFreeQuickLuna(request, result.mode) && !hasUsedFreeQuickLuna(session.user.id)) {
         markFreeQuickLunaUsed(session.user.id);
       }
     } catch {
