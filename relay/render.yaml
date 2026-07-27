@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: clientlens-ai-relay
+    runtime: node
+    buildCommand: npm ci && npm run build:relay
+    startCommand: npm run start:relay
+    healthCheckPath: /health
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_SITE_URL
+        value: https://clientlens.ru
+      - key: OPENROUTER_APP_NAME
+        value: ClientLens
+      - key: RELAY_SECRET
+        sync: false

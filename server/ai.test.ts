@@ -27,6 +27,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.OPENROUTER_MODEL_LUNA;
+  delete process.env.AI_RELAY_URL;
+  delete process.env.AI_RELAY_SECRET;
 });
 
 describe('buildFallbackResponse', () => {
@@ -71,5 +73,20 @@ describe('buildFallbackResponse', () => {
 
     expect(response.mode).toBe('basic');
     expect(response.notice).toMatch(/базов/i);
+  });
+
+  it('uses the protected relay when relay configuration is present', async () => {
+    process.env.OPENROUTER_API_KEY = 'unused-on-vps';
+    process.env.AI_RELAY_URL = 'https://relay.example/';
+    process.env.AI_RELAY_SECRET = 'relay-secret';
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(validReport) } }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await analyzeWithAi({ ...emptyProfile, title: 'Р Р°Р·СЂР°Р±РѕС‚С‡РёРє', description: 'Р”РµР»Р°СЋ СЃР°Р№С‚С‹', goal: 'orders' });
+
+    expect(response.mode).toBe('ai');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://relay.example/ai/analyze');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer relay-secret');
   });
 });

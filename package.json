@@ -11,6 +11,8 @@
     "dev:client": "vite --host 127.0.0.1",
     "dev:server": "tsx watch server/index.ts",
     "start": "node --import tsx server/index.ts",
+    "start:relay": "node --import tsx relay/src/server.ts",
+    "build:relay": "tsc --ignoreConfig --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop --skipLibCheck relay/src/server.ts",
     "build": "tsc -b && vite build",
     "test": "vitest",
     "lint": "eslint src server --max-warnings=0"
