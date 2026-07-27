@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { analyzeWithAi, buildFallbackResponse } from './ai';
 import { SYSTEM_PROMPT } from './prompt';
 import { emptyProfile } from '../src/domain/profile';
+import { parseAiReport } from './schema';
 
 const validReport = {
   overallSummary: 'Профиль понятно описывает услугу.',
@@ -22,6 +23,11 @@ const validReport = {
   pricingRecommendations: ['Показать вилку цены'],
   missingDataWarnings: [],
 };
+
+it('accepts a fenced provider response and normalizes English probability labels', () => {
+  const normalized = parseAiReport(`\`\`\`json\n${JSON.stringify({ ...validReport, orderProbability: 'Medium' })}\n\`\`\``);
+  expect(normalized?.orderProbability).toBe('Средняя');
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
