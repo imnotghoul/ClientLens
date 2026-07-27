@@ -110,6 +110,21 @@ describe('buildFallbackResponse', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('retries the relay up to three times when the Render connection fails', async () => {
+    process.env.AI_RELAY_URL = 'https://relay.example/';
+    process.env.AI_RELAY_SECRET = 'relay-secret';
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(validReport) } }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await analyzeWithAi({ ...emptyProfile, title: 'Разработчик', description: 'Делаю сайты', goal: 'orders' });
+
+    expect(response.mode).toBe('ai');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('logs the response shape when validation rejects a paid AI response', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);

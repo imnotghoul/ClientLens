@@ -22,11 +22,6 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
   const platform = options.platform ?? 'Профиль фрилансера';
   if (!key && !(relayUrl && relaySecret)) return buildFallbackResponse(profile, 'AI-анализ пока недоступен: используется базовый анализ профиля.', platform);
 
-  const controller = new AbortController();
-  // Render's free instances can take close to a minute to wake up. Keep one
-  // transient retry inside the same request window so the UI does not fall
-  // back just because the relay is cold.
-  const timeout = setTimeout(() => controller.abort(), 90_000);
   try {
     const targetUrl = relayUrl ? `${relayUrl}/ai/analyze` : `${process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'}/chat/completions`;
     const requestInit: RequestInit = {
@@ -46,16 +41,22 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
         response_format: { type: 'json_schema', json_schema: { name: 'freelance_profile_audit', strict: true, schema: AI_JSON_SCHEMA } },
         max_tokens: 2600,
       }),
-      signal: controller.signal,
     };
     let response: Response | undefined;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    // Each retry gets a fresh AbortController. A timed-out first request must
+    // not leave the signal for the next request permanently aborted.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const attemptController = new AbortController();
+      const attemptTimeout = setTimeout(() => attemptController.abort(), 30_000);
       try {
-        response = await fetch(targetUrl, requestInit);
+        response = await fetch(targetUrl, { ...requestInit, signal: attemptController.signal });
         break;
       } catch (error) {
-        if (attempt === 1) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        console.warn('[AI] relay attempt failed', { attempt: attempt + 1, message: error instanceof Error ? error.message : String(error) });
+        if (attempt === 2) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      } finally {
+        clearTimeout(attemptTimeout);
       }
     }
     if (!response) throw new Error('AI request did not return a response');
@@ -82,7 +83,5 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
   } catch (error) {
     console.error('[AI] analysis unavailable:', error instanceof Error ? error.message : String(error));
     return buildFallbackResponse(profile, 'AI-анализ временно недоступен: используется базовый анализ профиля.', platform);
-  } finally {
-    clearTimeout(timeout);
   }
 }
