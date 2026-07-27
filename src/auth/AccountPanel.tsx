@@ -21,6 +21,8 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changeCode, setChangeCode] = useState('');
   const [awaitingPasswordCode, setAwaitingPasswordCode] = useState(false);
+  const [balance, setBalance] = useState(0);
+  const [paymentMessage, setPaymentMessage] = useState('');
   const avatarInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,6 +48,28 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
       setAvatar(data.avatar_path ? withAvatarCacheBust(client.storage.from('avatars').getPublicUrl(data.avatar_path).data.publicUrl) : '');
     });
   }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    void fetch('/api/wallet', { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((response) => response.ok ? response.json() as Promise<{ balance?: number }> : null)
+      .then((data) => { if (data) setBalance(Number(data.balance ?? 0)); })
+      .catch(() => undefined);
+  }, [session]);
+
+  const topUp = async (amount: number) => {
+    if (!session) return;
+    setPaymentMessage('Создаём платёж…');
+    try {
+      const response = await fetch('/api/yookassa/create-payment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ amount }),
+      });
+      const data = await response.json() as { confirmationUrl?: string; error?: string };
+      if (!response.ok || !data.confirmationUrl) return setPaymentMessage(data.error ?? 'Не удалось создать платёж.');
+      window.location.assign(data.confirmationUrl);
+    } catch { setPaymentMessage('Не удалось связаться с платёжным сервисом.'); }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -167,6 +191,6 @@ export function AccountPanel({ mode = 'profile', initialScreen = 'login', onProf
     const title = screen === 'login' ? 'Войти' : screen === 'register' ? 'Создать аккаунт' : screen === 'confirm' ? 'Подтвердить почту' : 'Сбросить пароль';
     return <section className="account-panel"><p className="eyebrow">Аккаунт ClientLens</p><h1>{title}</h1><form onSubmit={submit} className="account-form">{screen !== 'confirm' && <label>Почта<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" /></label>}{(screen === 'login' || screen === 'register') && <label>Пароль<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={12} autoComplete={screen === 'login' ? 'current-password' : 'new-password'} /></label>}{screen === 'register' && <label>Ник<input value={nickname} onChange={(event) => setNickname(event.target.value)} required autoComplete="username" /></label>}{screen === 'confirm' && <label>Код из письма<input value={code} onChange={(event) => setCode(normalizeOtp(event.target.value))} required maxLength={8} inputMode="numeric" autoComplete="one-time-code" /></label>}<button className="primary">{screen === 'login' ? 'Войти' : screen === 'register' ? 'Отправить код' : screen === 'confirm' ? 'Подтвердить' : 'Отправить письмо'}</button></form>{screen === 'login' && <div className="auth-actions"><button className="text-button" type="button" onClick={() => setScreen('register')}>Создать аккаунт</button><button className="text-button" type="button" onClick={() => setScreen('reset')}>Не помню пароль</button></div>}{screen !== 'login' && <button className="text-button" type="button" onClick={() => setScreen('login')}>У меня уже есть аккаунт</button>}{message && <p className="analysis-notice">{message}</p>}</section>;
   }
-  if (mode === 'settings') return <section className="account-panel"><p className="eyebrow">Безопасность и оплата</p><h1>Аккаунт</h1><form onSubmit={changePassword} className="account-form"><h3>Смена пароля</h3>{!awaitingPasswordCode ? <><label>Старый пароль<input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" /></label><label>Новый пароль<input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={12} autoComplete="new-password" /></label><label>Повторите новый пароль<input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={12} autoComplete="new-password" /></label><button className="primary">Отправить код</button></> : <><label>Код из письма<input value={changeCode} onChange={(event) => setChangeCode(normalizeOtp(event.target.value))} required maxLength={8} inputMode="numeric" autoComplete="one-time-code" /></label><button className="primary">Изменить пароль</button></>}</form><section className="payment-placeholder"><b>Способы оплаты</b><p>Подключим позже. Данные карт и реквизиты сейчас не принимаем.</p><button className="secondary" type="button" disabled>+ Добавить способ оплаты</button></section>{message && <p className="analysis-notice">{message}</p>}</section>;
+  if (mode === 'settings') return <section className="account-panel"><p className="eyebrow">Безопасность и оплата</p><h1>Аккаунт</h1><section className="payment-placeholder"><b>Баланс ClientLens</b><p className="wallet-balance">{balance.toFixed(2)} ₽</p><p>Пополнение проходит через защищённую форму ЮKassa. Данные карты мы не храним.</p><div className="top-up-actions">{[100, 300, 500, 1000].map((amount) => <button className="secondary" type="button" key={amount} onClick={() => void topUp(amount)}>Пополнить на {amount} ₽</button>)}</div>{paymentMessage && <p className="analysis-notice">{paymentMessage}</p>}</section><form onSubmit={changePassword} className="account-form"><h3>Смена пароля</h3>{!awaitingPasswordCode ? <><label>Старый пароль<input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" /></label><label>Новый пароль<input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={12} autoComplete="new-password" /></label><label>Повторите новый пароль<input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={12} autoComplete="new-password" /></label><button className="primary">Отправить код</button></> : <><label>Код из письма<input value={changeCode} onChange={(event) => setChangeCode(normalizeOtp(event.target.value))} required maxLength={8} inputMode="numeric" autoComplete="one-time-code" /></label><button className="primary">Изменить пароль</button></>}</form>{message && <p className="analysis-notice">{message}</p>}</section>;
   return <section className="account-panel"><header className="profile-header"><div><p className="eyebrow">Ваш аккаунт</p><h1>Профиль</h1><p>{session.user.email}</p></div><div className="avatar-controls">{avatar ? <img className="profile-header-avatar" src={avatar} alt="Аватар" /> : <span className="profile-header-avatar avatar-fallback">{profileAvatarLetter(nickname)}</span>}<div><button className="secondary avatar-action" type="button" onClick={() => avatarInput.current?.click()}>Изменить</button>{avatar && <button className="text-button avatar-action" type="button" onClick={() => void removeAvatar()}>Удалить</button>}</div></div><input ref={avatarInput} className="visually-hidden" type="file" accept="image/*" onChange={(event) => void uploadAvatar(event.target.files?.[0])} /></header><form onSubmit={saveProfile} className="account-form"><label>Ник<input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="например, aegis" autoComplete="username" required /></label><button className="primary">Сохранить профиль</button></form><button className="text-button" type="button" onClick={() => { if (supabase) void supabase.auth.signOut(); }}>Выйти</button>{message && <p className="analysis-notice">{message}</p>}</section>;
 }

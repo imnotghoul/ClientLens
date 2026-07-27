@@ -9,6 +9,7 @@ import { collectPublicProfile, platformLabel } from './profile-collection';
 import { compareProfiles } from '../src/scoring/competitive-analysis';
 import type { ProfileInput } from '../src/domain/profile';
 import { isProduction, serveProductionFiles } from './production';
+import { registerYookassaRoutes } from './yookassa';
 
 const app = express();
 app.disable('x-powered-by');
@@ -34,6 +35,7 @@ const mergeProfile = (manual: ProfileInput, collected?: ProfileInput): ProfileIn
 };
 
 app.get('/api/health', (_request, response) => response.json({ ok: true }));
+registerYookassaRoutes(app);
 app.post('/api/analyze', analyzeLimit, async (request, response, next) => {
   try {
     const token = extractBearerToken(request.header('authorization'));
