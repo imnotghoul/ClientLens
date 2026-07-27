@@ -23,10 +23,13 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
   if (!key && !(relayUrl && relaySecret)) return buildFallbackResponse(profile, 'AI-анализ пока недоступен: используется базовый анализ профиля.', platform);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
+  // Render's free instances can take close to a minute to wake up. Keep one
+  // transient retry inside the same request window so the UI does not fall
+  // back just because the relay is cold.
+  const timeout = setTimeout(() => controller.abort(), 90_000);
   try {
     const targetUrl = relayUrl ? `${relayUrl}/ai/analyze` : `${process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'}/chat/completions`;
-    const response = await fetch(targetUrl, {
+    const requestInit: RequestInit = {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${relayUrl ? relaySecret : key}`,
@@ -44,7 +47,18 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
         max_tokens: 2600,
       }),
       signal: controller.signal,
-    });
+    };
+    let response: Response | undefined;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await fetch(targetUrl, requestInit);
+        break;
+      } catch (error) {
+        if (attempt === 1) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      }
+    }
+    if (!response) throw new Error('AI request did not return a response');
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
       console.error(`[AI] request failed: ${response.status} ${response.statusText}`, errorBody.slice(0, 500));
