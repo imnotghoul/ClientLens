@@ -13,6 +13,10 @@ const start = async (fetchImpl = vi.fn()) => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('AI relay', () => {
+  it('trusts the Render reverse-proxy hop', () => {
+    const app = createRelayApp({ secret: 'test-secret' });
+    expect(app.get('trust proxy')).toBe(1);
+  });
   it('returns health without exposing secrets', async () => {
     const { server, url } = await start();
     const response = await fetch(`${url}/health`);

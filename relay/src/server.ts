@@ -9,10 +9,12 @@ type RelayOptions = {
 
 export function createRelayApp(options: RelayOptions = {}): Express {
   const app = express();
-  const secret = options.secret ?? process.env.RELAY_SECRET ?? '';
+  const secret = options.secret ?? process.env.RELAY_SECRET ?? process.env.AI_RELAY_SECRET ?? '';
   const fetchImpl = options.fetchImpl ?? fetch;
 
   app.disable('x-powered-by');
+  // Render adds X-Forwarded-For; trust the single reverse-proxy hop.
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '24kb' }));
   app.use(rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false }));
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { analyzeWithAi, buildFallbackResponse } from './ai';
+import { AI_OUTPUT_TOKEN_BUDGETS, analyzeWithAi, buildFallbackResponse } from './ai';
 import { SYSTEM_PROMPT } from './prompt';
 import { emptyProfile } from '../src/domain/profile';
 import { parseAiReport } from './schema';
@@ -85,7 +85,22 @@ describe('buildFallbackResponse', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
     expect(JSON.parse(String(init.body)).model).toBe('openai/gpt-5.6-luna');
     expect(JSON.parse(String(init.body)).response_format.type).toBe('json_schema');
-    expect(JSON.parse(String(init.body)).max_tokens).toBe(6000);
+    expect(JSON.parse(String(init.body)).max_tokens).toBe(12000);
+  });
+
+  it('uses bounded output budgets for Terra and the expensive Sol/Opus tier', async () => {
+    expect(AI_OUTPUT_TOKEN_BUDGETS['gpt-5.6-luna']).toBe(12000);
+    expect(AI_OUTPUT_TOKEN_BUDGETS['gpt-5.6-terra']).toBe(10000);
+    expect(AI_OUTPUT_TOKEN_BUDGETS['gpt-5.6-sol']).toBe(9000);
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(validReport) } }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await analyzeWithAi({ ...emptyProfile, title: 'Тест', description: 'Описание', goal: 'orders' }, { model: 'gpt-5.6-terra' });
+    expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)).max_tokens).toBe(10000);
+
+    await analyzeWithAi({ ...emptyProfile, title: 'Тест', description: 'Описание', goal: 'orders' }, { model: 'gpt-5.6-sol' });
+    expect(JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body)).max_tokens).toBe(9000);
   });
 
   it('falls back when OpenRouter returns an error', async () => {

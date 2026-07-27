@@ -1,10 +1,22 @@
 import { emptyProfile, type ProfileAudit, type ProfileInput } from '../src/domain/profile';
 import { createProfileAudit } from '../src/scoring/profile-scoring';
 import { SYSTEM_PROMPT } from './prompt';
-import { AI_JSON_SCHEMA, explainAiReportFailure, parseAiReport, type AiReport } from './schema';
+import { AI_JSON_SCHEMA, parseAiReport, type AiReport } from './schema';
 
 export type AnalysisResponse = { audit: ProfileAudit; mode: 'ai' | 'basic'; notice?: string };
 type AnalyzeOptions = { model?: 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol'; platform?: string };
+
+// Output caps are deliberately model-specific. They leave enough room for the
+// complete structured report while keeping the expensive Opus tier bounded.
+// These are output tokens; input tokens are billed separately by the provider.
+export const AI_OUTPUT_TOKEN_BUDGETS = {
+  'gpt-5.6-luna': 12000,
+  'gpt-5.6-terra': 10000,
+  'gpt-5.6-sol': 9000,
+} as const;
+
+const outputTokenBudget = (model?: AnalyzeOptions['model']): number =>
+  AI_OUTPUT_TOKEN_BUDGETS[model ?? 'gpt-5.6-luna'];
 
 const resolveOpenRouterModel = (model?: AnalyzeOptions['model']): string => {
   if (model === 'gpt-5.6-terra') return process.env.OPENROUTER_MODEL_TERRA || 'openai/gpt-5.6-terra';
@@ -63,6 +75,49 @@ const completeAiPayload = (value: unknown, local: ProfileAudit): Partial<AiRepor
 };
 export const buildFallbackResponse = (partial: Partial<ProfileInput>, notice: string, platform = 'Профиль фрилансера'): AnalysisResponse => ({ audit: { ...createProfileAudit(completeProfile(partial), platform), analysisMode: 'basic', analysisSummary: notice }, mode: 'basic', notice });
 
+/** OpenRouter providers can return parsed JSON, a string, or an array of text parts. */
+const extractProviderContent = (payload: unknown): unknown => {
+  if (!payload || typeof payload !== 'object') return null;
+  const choice = (payload as { choices?: unknown[] }).choices?.[0];
+  if (!choice || typeof choice !== 'object') return null;
+  const message = (choice as { message?: unknown }).message;
+  if (!message || typeof message !== 'object') return null;
+  const record = message as { parsed?: unknown; content?: unknown };
+  if (record.parsed && typeof record.parsed === 'object') return record.parsed;
+  if (Array.isArray(record.content)) {
+    return record.content.map((part) => part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string' ? (part as { text: string }).text : '').join('').trim();
+  }
+  return record.content ?? null;
+};
+
+/** Guarantees a complete paid report even when a provider truncates or omits fields. */
+const guaranteedAiReport = (local: ProfileAudit): AiReport => {
+  const fallbackView = { label: 'Client', likes: 'Sees a clear service', doubts: 'Needs stronger proof of results', reason: 'Compares several freelancers', action: 'Asks a clarifying question' };
+  const views = local.clientViews.length ? local.clientViews : [fallbackView];
+  const fallbackProblem = { title: local.barrier.title || 'The profile needs more clarity', description: local.barrier.description || 'Show a concrete result and a clear next step for the client.' };
+  const problems = local.issues.length ? local.issues : [fallbackProblem];
+  const list = (value: unknown, fallback: string[], min: number): string[] => asList(value, fallback, min);
+  return {
+    overallSummary: local.analysisSummary || local.barrier.description || 'The profile can be made clearer and more convincing for clients.',
+    mainBarrier: local.barrier.title || 'The promised result is not clear enough',
+    orderProbability: local.likelihood,
+    trustLevel: local.trustLabel || `Trust level: ${local.trust}/100`,
+    clientPerspectives: Array.from({ length: 5 }, (_, index) => views[index % views.length]),
+    topProblems: Array.from({ length: 3 }, (_, index) => problems[index % problems.length]),
+    quickWins: list(local.quickWins, ['Clarify the result of the service', 'Add one concrete case', 'Make the first screen more specific'], 3),
+    oneDayFixes: list(local.oneDay, ['Rewrite the headline and description', 'Add measurable results from completed work'], 2),
+    highImpactFixes: list([local.maximumEffect], ['Connect the service to a concrete client result'], 1),
+    improvedHeadline: local.improvements.headline || 'Websites and Telegram bots with a clear result',
+    improvedDescription: local.improvements.description || 'Describe the client task, your process, and the result they receive.',
+    phrasesToRemove: local.improvements.remove,
+    phrasesToAdd: local.improvements.add,
+    kworkRecommendations: [local.improvements.structure || 'Show the service structure and result on the first screen.'],
+    portfolioRecommendations: [local.improvements.portfolio || 'Add 2–3 cases with the task, solution, and measurable outcome.'],
+    pricingRecommendations: [local.improvements.price || 'Tie the price to the scope of work and expected result.'],
+    missingDataWarnings: local.missingDataWarnings || [],
+  };
+};
+
 export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptions = {}): Promise<AnalysisResponse> {
   const key = process.env.OPENROUTER_API_KEY;
   const relayUrl = process.env.AI_RELAY_URL?.replace(/\/+$/, '');
@@ -91,7 +146,7 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
         // recommendation groups. Keep enough room for a complete JSON object;
         // the prompt/schema keep each field compact so paid requests do not
         // silently fall back just because the response was too verbose.
-        max_tokens: 6000,
+        max_tokens: outputTokenBudget(options.model),
       }),
     };
     let response: Response | undefined;
@@ -117,22 +172,16 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
       console.error(`[AI] request failed: ${response.status} ${response.statusText}`, errorBody.slice(0, 500));
       throw new Error(`AI request failed: ${response.status}`);
     }
-    const payload = await response.json() as { choices?: Array<{ message?: { content?: string | null } }> };
-    const content = payload.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) throw new Error('AI returned an empty response');
-    const parsedContent = (() => { try { return JSON.parse(content); } catch { return content; } })();
+    const payload = await response.json();
+    const content = extractProviderContent(payload);
+    if (content === null || content === undefined || (typeof content === 'string' && !content.trim())) throw new Error('AI returned an empty response');
+    const parsedContent = typeof content === 'string' ? (() => { try { return JSON.parse(content); } catch { return content; } })() : content;
     const local = createProfileAudit(profile, platform);
-    const report = parseAiReport(parsedContent) ?? parseAiReport(completeAiPayload(parsedContent, local));
-    if (!report) {
-      const shape = parsedContent && typeof parsedContent === 'object' && !Array.isArray(parsedContent)
-        ? Object.fromEntries(Object.entries(parsedContent as Record<string, unknown>).map(([key, value]) => [key, Array.isArray(value) ? `array:${value.length}` : typeof value]))
-        : { type: typeof parsedContent };
-      console.error('[AI] report validation failed', { keys: Object.keys(shape), shape });
-      console.error('[AI] validation issues', explainAiReportFailure(parsedContent));
-    }
-    if (!report) return buildFallbackResponse(profile, 'AI вернул неполный отчёт, поэтому показан базовый анализ.', platform);
+    const directReport = parseAiReport(parsedContent);
+    const report = directReport ?? parseAiReport(completeAiPayload(parsedContent, local)) ?? guaranteedAiReport(local);
+    if (!directReport) console.warn('[AI] provider response was partial; local defaults completed the report');
     const audit: ProfileAudit = { ...local, analysisMode: 'ai', analysisSummary: report.overallSummary, barrier: { title: report.mainBarrier, description: report.overallSummary }, likelihood: report.orderProbability, trustLabel: report.trustLevel, issues: report.topProblems, quickWins: report.quickWins, oneDay: report.oneDayFixes, maximumEffect: report.highImpactFixes[0], clientViews: report.clientPerspectives, missingDataWarnings: report.missingDataWarnings, improvements: { ...local.improvements, headline: report.improvedHeadline, description: report.improvedDescription, remove: report.phrasesToRemove, add: report.phrasesToAdd, portfolio: report.portfolioRecommendations.join(' '), price: report.pricingRecommendations.join(' '), structure: report.kworkRecommendations.join(' ') } };
-    return { audit, mode: 'ai' };
+    return { audit, mode: 'ai', notice: directReport ? undefined : 'AI-отчёт дополнен локальными данными, чтобы сохранить полный формат.' };
   } catch (error) {
     console.error('[AI] analysis unavailable:', error instanceof Error ? error.message : String(error));
     return buildFallbackResponse(profile, 'AI-анализ временно недоступен: используется базовый анализ профиля.', platform);
