@@ -6,10 +6,11 @@ import type { AnalysisRequest } from '../api/analyze';
 
 const blankCompetitor = (): CompetitorInput => ({ name: '', headline: '', price: '', proof: '' });
 
-export function ProfileForm({ onAnalyze, onDemo = () => undefined, notice }: {
+export function ProfileForm({ onAnalyze, onDemo = () => undefined, notice, freeQuickLunaAvailable = false }: {
   onAnalyze: (request: AnalysisRequest) => void;
   onDemo?: () => void;
   notice?: string;
+  freeQuickLunaAvailable?: boolean;
 }) {
   const [profile, setProfile] = useState<ProfileInput>(emptyProfile);
   const [manual, setManual] = useState(false);
@@ -17,7 +18,8 @@ export function ProfileForm({ onAnalyze, onDemo = () => undefined, notice }: {
   const [model, setModel] = useState<AiModel>('gpt-5.6-luna');
   const [competitors, setCompetitors] = useState<CompetitorInput[]>([blankCompetitor()]);
   const [error, setError] = useState('');
-  const price = getAnalysisPrice(mode, model);
+  const isFreeQuickLuna = freeQuickLunaAvailable && mode === 'quick' && model === 'gpt-5.6-luna';
+  const price = isFreeQuickLuna ? 0 : getAnalysisPrice(mode, model);
 
   const update = (key: keyof ProfileInput, value: string | number) => setProfile((old) => ({ ...old, [key]: value }));
   const updateCompetitor = (index: number, key: keyof CompetitorInput, value: string) => setCompetitors((old) => old.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item));
@@ -40,7 +42,7 @@ export function ProfileForm({ onAnalyze, onDemo = () => undefined, notice }: {
     {notice ? <p className="analysis-notice" role="status">{notice}</p> : null}
     <div className="mode-grid">{(Object.keys(modeDefaults) as AnalysisMode[]).map((item) => <button type="button" className={mode === item ? 'mode-card active' : 'mode-card'} key={item} onClick={() => setMode(item)}><b>{modeDefaults[item].title}</b><span>{modeDefaults[item].description}</span></button>)}</div>
     <div className="model-row"><span>Модель анализа</span><div>{(Object.keys(aiModels) as AiModel[]).map((item) => <button type="button" className={model === item ? 'model-chip active' : 'model-chip'} key={item} onClick={() => setModel(item)}>{aiModels[item].name}</button>)}</div></div>
-    <div className="price-panel"><div><b>{aiModels[model].name} · {modeDefaults[mode].title}</b><span>AI-анализ через OpenRouter</span></div><strong>{price} ₽</strong></div>
+    <div className="price-panel"><div><b>{aiModels[model].name} · {modeDefaults[mode].title}</b><span>AI-анализ через OpenRouter</span>{isFreeQuickLuna ? <span>{'Первый быстрый анализ Luna — бесплатно'}</span> : null}</div><strong>{price} ₽</strong></div>
     <label className="field wide"><span>Ссылка на профиль фрилансера</span><input value={profile.profileUrl} placeholder="https://kwork.ru/... или https://fl.ru/..." onChange={(event) => update('profileUrl', event.target.value)} /><small>Поддерживаются публичные ссылки Kwork, FL.ru и Freelance.ru.</small></label>
     <button className="text-button" type="button" onClick={() => setManual(!manual)}>{manual ? 'Скрыть ручное заполнение' : 'Дополнить данные вручную'}</button>
     {manual && <div className="manual-grid">

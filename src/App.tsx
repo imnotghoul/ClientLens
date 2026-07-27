@@ -15,6 +15,7 @@ import { demoAudit } from './data/demo-report';
 import type { ProfileAudit } from './domain/profile';
 import { deleteCloudReport, listCloudReports, saveCloudReport } from './storage/cloud-report-store';
 import { deleteReport, listReports, saveReport, type SavedReport } from './storage/report-store';
+import { hasUsedFreeQuickLuna, markFreeQuickLunaUsed } from './storage/free-analysis-store';
 import { saveView } from './storage/view-store';
 import { pathForPublicPage } from './legal/public-pages';
 import { initialViewFromPath } from './legal/initial-view';
@@ -95,6 +96,9 @@ export default function App() {
       const result = await requestAnalysis(request, session.access_token);
       if (result.notice) setNotice(result.notice);
       saveAndOpen(request, result.audit);
+      if (request.mode === 'quick' && request.model === 'gpt-5.6-luna' && !hasUsedFreeQuickLuna(session.user.id)) {
+        markFreeQuickLunaUsed(session.user.id);
+      }
     } catch {
       const local = {
         ...new ProfileAnalyzer().analyze(request.profile),
@@ -117,11 +121,12 @@ export default function App() {
     else setView(next);
   };
   const activeHeaderView: HeaderView = view === 'reports' || view === 'demo' || view === 'newcomers' || view === 'profile' ? view : 'new';
+  const freeQuickLunaAvailable = session ? !hasUsedFreeQuickLuna(session.user.id) : false;
 
   return <main className="app">
     <AppHeader activeView={activeHeaderView} reportCount={reports.length} isAuthenticated={Boolean(session)} accountLabel={profileIdentity?.nickname ?? ''} avatarUrl={profileIdentity?.avatarUrl ?? ''} identityReady={identityReady} onNavigate={navigate} onAuth={(intent) => { setAuthIntent(intent); setView('profile'); }} />
     <section className="content">
-      {loading ? <Loading /> : view === 'new' ? <ProfileForm onAnalyze={analyze} onDemo={openDemo} notice={notice} /> : null}
+      {loading ? <Loading /> : view === 'new' ? <ProfileForm onAnalyze={analyze} onDemo={openDemo} notice={notice} freeQuickLunaAvailable={freeQuickLunaAvailable} /> : null}
       {!loading && view === 'reports' ? <Reports reports={reports} onOpen={(report) => { setAudit(report.audit); setView('demo'); }} onDelete={(id) => { deleteReport(id); if (session) void deleteCloudReport(id); setReports(listReports()); }} onNew={() => setView('new')} /> : null}
       {!loading && view === 'demo' && audit ? <Dashboard audit={audit} onRestart={() => setView('new')} /> : null}
       {!loading && view === 'newcomers' ? <NewcomersPage onAnalyze={() => setView('new')} /> : null}
