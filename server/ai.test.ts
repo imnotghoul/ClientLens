@@ -1,6 +1,33 @@
-import { describe, expect, it } from 'vitest';
-import { buildFallbackResponse } from './ai';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { analyzeWithAi, buildFallbackResponse } from './ai';
 import { SYSTEM_PROMPT } from './prompt';
+import { emptyProfile } from '../src/domain/profile';
+
+const validReport = {
+  overallSummary: 'Профиль понятно описывает услугу.',
+  mainBarrier: 'Не хватает конкретных доказательств.',
+  orderProbability: 'Средняя',
+  trustLevel: 'Средний',
+  clientPerspectives: ['Быстрый клиент', 'Осторожный клиент', 'Премиум-клиент', 'Неопытный клиент', 'Сравнивающий клиент'].map((label) => ({ label, likes: 'Понятное описание', doubts: 'Мало примеров', reason: 'Нужны доказательства', action: 'Добавить кейс' })),
+  topProblems: [1, 2, 3].map((index) => ({ title: `Нет кейсов ${index}`, description: 'Добавьте 2–3 примера работ.' })),
+  quickWins: ['Добавить измеримый результат', 'Уточнить срок', 'Показать результат'],
+  oneDayFixes: ['Переписать первый экран', 'Добавить один кейс'],
+  highImpactFixes: ['Добавить портфолио'],
+  improvedHeadline: 'Разрабатываю сайты с понятным результатом',
+  improvedDescription: 'Короткое описание услуги и результата.',
+  phrasesToRemove: ['Сделаю всё'],
+  phrasesToAdd: ['Срок и результат'],
+  kworkRecommendations: ['Уточнить состав услуги'],
+  portfolioRecommendations: ['Добавить кейсы'],
+  pricingRecommendations: ['Показать вилку цены'],
+  missingDataWarnings: [],
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  delete process.env.OPENROUTER_API_KEY;
+  delete process.env.OPENROUTER_MODEL_LUNA;
+});
 
 describe('buildFallbackResponse', () => {
   it('does not use Kwork-only wording in the system prompt', () => {
@@ -17,5 +44,32 @@ describe('buildFallbackResponse', () => {
     expect(response.mode).toBe('basic');
     expect(response.audit.score).toBeGreaterThan(0);
     expect(response.notice).toMatch(/недоступен/i);
+  });
+
+  it('sends one structured chat request through OpenRouter', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    process.env.OPENROUTER_MODEL_LUNA = 'openai/gpt-5.6-luna';
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(validReport) } }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await analyzeWithAi({ ...emptyProfile, title: 'Разработчик', description: 'Делаю сайты', goal: 'orders' });
+
+    expect(response.mode).toBe('ai');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
+    expect(JSON.parse(String(init.body)).model).toBe('openai/gpt-5.6-luna');
+    expect(JSON.parse(String(init.body)).response_format.type).toBe('json_schema');
+  });
+
+  it('falls back when OpenRouter returns an error', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('quota exceeded', { status: 429 })));
+
+    const response = await analyzeWithAi({ ...emptyProfile, title: 'Разработчик', description: 'Делаю сайты', goal: 'orders' });
+
+    expect(response.mode).toBe('basic');
+    expect(response.notice).toMatch(/базов/i);
   });
 });

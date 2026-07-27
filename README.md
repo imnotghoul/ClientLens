@@ -24,10 +24,12 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 Создайте локальный `.env` по примеру `.env.example`.
 
 ```env
-OPENAI_API_KEY=
-OPENAI_MODEL_LUNA=gpt-5.6-luna
-OPENAI_MODEL_TERRA=gpt-5.6-terra
-OPENAI_MODEL_SOL=gpt-5.6-sol
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL_LUNA=openai/gpt-5.6-luna
+OPENROUTER_MODEL_TERRA=openai/gpt-5.6-terra
+OPENROUTER_MODEL_SOL=anthropic/claude-opus-5
+OPENROUTER_SITE_URL=https://clientlens.ru
+OPENROUTER_APP_NAME=ClientLens
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_URL=
