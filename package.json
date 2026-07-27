@@ -2,7 +2,9 @@
   "name": "freelance-trust-audit",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail \"npm:dev:server\" \"npm:dev:client\"",
@@ -25,6 +27,7 @@
     "react-dom": "latest",
     "typescript": "latest",
     "vite": "latest",
+    "ws": "^8.21.1",
     "zod": "latest"
   },
   "devDependencies": {
@@ -34,6 +37,7 @@
     "@types/express": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/ws": "^8.18.1",
     "concurrently": "latest",
     "eslint": "latest",
     "jsdom": "latest",

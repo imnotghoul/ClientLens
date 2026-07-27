@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServerSupabaseClient } from './supabase';
 
 type VerifyToken = (token: string) => Promise<string | null>;
 
@@ -13,7 +13,7 @@ export const verifySupabaseAccessToken: VerifyToken = async (token) => {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return null;
-  const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  const client = createServerSupabaseClient(url, key);
   const { data, error } = await client.auth.getUser(token);
   return error || !data.user ? null : data.user.id;
 };

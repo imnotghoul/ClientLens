@@ -1,6 +1,7 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Express, Request } from 'express';
 import { extractBearerToken, requireAuthenticatedUser, verifySupabaseAccessToken } from './auth';
+import { createServerSupabaseClient } from './supabase';
 
 const YOOKASSA_API = 'https://api.yookassa.ru/v3';
 const TOP_UP_AMOUNTS = new Set([100, 300, 500, 1000]);
@@ -22,7 +23,7 @@ export function paymentConfirmationUrl(): string {
 function adminClient(): SupabaseClient | null {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
-  return url && key ? createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } }) : null;
+  return url && key ? createServerSupabaseClient(url, key) : null;
 }
 
 async function yookassaRequest(path: string, init?: RequestInit): Promise<YooKassaResponse> {
