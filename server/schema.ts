@@ -27,13 +27,11 @@ const unwrapJson = (value: string): unknown => {
   }
 };
 
-export const parseAiReport = (value: unknown): AiReport | null => {
-  const unwrapped = typeof value === 'string' ? unwrapJson(value) : value;
-  if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) return null;
-  const candidate = { ...(unwrapped as Record<string, unknown>) };
-  // Keep provider responses within the UI contract when a model returns more
-  // recommendations than requested. This preserves an otherwise valid paid
-  // response instead of forcing a fallback report.
+const clip = (value: unknown, max: number): unknown => typeof value === 'string' ? value.trim().slice(0, max) : value;
+
+const normalizeCandidate = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = { ...(value as Record<string, unknown>) };
   const limits: Record<string, number> = {
     clientPerspectives: 5, topProblems: 5, quickWins: 5, oneDayFixes: 5,
     highImpactFixes: 3, phrasesToRemove: 5, phrasesToAdd: 5,
@@ -46,27 +44,56 @@ export const parseAiReport = (value: unknown): AiReport | null => {
   if (typeof candidate.orderProbability === 'string') {
     candidate.orderProbability = probabilityMap[candidate.orderProbability.trim().toLowerCase()] ?? candidate.orderProbability;
   }
+  candidate.overallSummary = clip(candidate.overallSummary, 900);
+  candidate.mainBarrier = clip(candidate.mainBarrier, 300);
+  candidate.trustLevel = clip(candidate.trustLevel, 120);
+  candidate.improvedHeadline = clip(candidate.improvedHeadline, 300);
+  candidate.improvedDescription = clip(candidate.improvedDescription, 1500);
+  const stringArrayLimits: Record<string, number> = {
+    quickWins: 300, oneDayFixes: 300, highImpactFixes: 300, phrasesToRemove: 200,
+    phrasesToAdd: 200, kworkRecommendations: 300, portfolioRecommendations: 300,
+    pricingRecommendations: 300, missingDataWarnings: 300,
+  };
+  for (const [key, max] of Object.entries(stringArrayLimits)) {
+    if (Array.isArray(candidate[key])) candidate[key] = candidate[key].map((item) => clip(item, max));
+  }
+  if (Array.isArray(candidate.clientPerspectives)) {
+    candidate.clientPerspectives = candidate.clientPerspectives.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const perspectiveValue = { ...(item as Record<string, unknown>) };
+      perspectiveValue.label = clip(perspectiveValue.label, 80);
+      perspectiveValue.likes = clip(perspectiveValue.likes, 500);
+      perspectiveValue.doubts = clip(perspectiveValue.doubts, 500);
+      perspectiveValue.reason = clip(perspectiveValue.reason, 500);
+      perspectiveValue.action = clip(perspectiveValue.action, 500);
+      return perspectiveValue;
+    });
+  }
+  if (Array.isArray(candidate.topProblems)) {
+    candidate.topProblems = candidate.topProblems.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const problem = { ...(item as Record<string, unknown>) };
+      problem.title = clip(problem.title, 120);
+      problem.description = clip(problem.description, 500);
+      return problem;
+    });
+  }
+  return candidate;
+};
+
+export const parseAiReport = (value: unknown): AiReport | null => {
+  const unwrapped = typeof value === 'string' ? unwrapJson(value) : value;
+  const candidate = normalizeCandidate(unwrapped);
+  if (!candidate) return null;
   const parsed = aiReportSchema.safeParse(candidate);
   return parsed.success ? parsed.data : null;
 };
 
 export const explainAiReportFailure = (value: unknown): Array<{ path: string; code: string; message: string }> => {
   const unwrapped = typeof value === 'string' ? unwrapJson(value) : value;
-  if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) {
+  const candidate = normalizeCandidate(unwrapped);
+  if (!candidate) {
     return [{ path: '', code: 'invalid_type', message: 'Response is not a JSON object' }];
-  }
-  const candidate = { ...(unwrapped as Record<string, unknown>) };
-  const limits: Record<string, number> = {
-    clientPerspectives: 5, topProblems: 5, quickWins: 5, oneDayFixes: 5,
-    highImpactFixes: 3, phrasesToRemove: 5, phrasesToAdd: 5,
-    kworkRecommendations: 4, portfolioRecommendations: 4,
-    pricingRecommendations: 4, missingDataWarnings: 5,
-  };
-  for (const [key, limit] of Object.entries(limits)) {
-    if (Array.isArray(candidate[key])) candidate[key] = candidate[key].slice(0, limit);
-  }
-  if (typeof candidate.orderProbability === 'string') {
-    candidate.orderProbability = probabilityMap[candidate.orderProbability.trim().toLowerCase()] ?? candidate.orderProbability;
   }
   const parsed = aiReportSchema.safeParse(candidate);
   return parsed.success ? [] : parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), code: issue.code, message: issue.message }));
