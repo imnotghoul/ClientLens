@@ -31,6 +31,18 @@ export const parseAiReport = (value: unknown): AiReport | null => {
   const unwrapped = typeof value === 'string' ? unwrapJson(value) : value;
   if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) return null;
   const candidate = { ...(unwrapped as Record<string, unknown>) };
+  // Keep provider responses within the UI contract when a model returns more
+  // recommendations than requested. This preserves an otherwise valid paid
+  // response instead of forcing a fallback report.
+  const limits: Record<string, number> = {
+    clientPerspectives: 5, topProblems: 5, quickWins: 5, oneDayFixes: 5,
+    highImpactFixes: 3, phrasesToRemove: 5, phrasesToAdd: 5,
+    kworkRecommendations: 4, portfolioRecommendations: 4,
+    pricingRecommendations: 4, missingDataWarnings: 5,
+  };
+  for (const [key, limit] of Object.entries(limits)) {
+    if (Array.isArray(candidate[key])) candidate[key] = candidate[key].slice(0, limit);
+  }
   if (typeof candidate.orderProbability === 'string') {
     candidate.orderProbability = probabilityMap[candidate.orderProbability.trim().toLowerCase()] ?? candidate.orderProbability;
   }

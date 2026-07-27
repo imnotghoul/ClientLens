@@ -29,6 +29,22 @@ it('accepts a fenced provider response and normalizes English probability labels
   expect(normalized?.orderProbability).toBe('Средняя');
 });
 
+it('trims valid oversized recommendation arrays to the UI limits', () => {
+  const normalized = parseAiReport({
+    ...validReport,
+    highImpactFixes: ['1', '2', '3', '4', '5'],
+    phrasesToAdd: ['1', '2', '3', '4', '5', '6'],
+    kworkRecommendations: ['1', '2', '3', '4', '5'],
+    portfolioRecommendations: ['1', '2', '3', '4', '5'],
+    pricingRecommendations: ['1', '2', '3', '4', '5'],
+    missingDataWarnings: ['1', '2', '3', '4', '5', '6'],
+  });
+  expect(normalized?.highImpactFixes).toHaveLength(3);
+  expect(normalized?.phrasesToAdd).toHaveLength(5);
+  expect(normalized?.kworkRecommendations).toHaveLength(4);
+  expect(normalized?.missingDataWarnings).toHaveLength(5);
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.OPENROUTER_API_KEY;
