@@ -67,7 +67,14 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string | null } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || !content.trim()) throw new Error('AI returned an empty response');
-    const report = parseAiReport(JSON.parse(content));
+    const parsedContent = (() => { try { return JSON.parse(content); } catch { return content; } })();
+    const report = parseAiReport(parsedContent);
+    if (!report) {
+      const shape = parsedContent && typeof parsedContent === 'object' && !Array.isArray(parsedContent)
+        ? Object.fromEntries(Object.entries(parsedContent as Record<string, unknown>).map(([key, value]) => [key, Array.isArray(value) ? `array:${value.length}` : typeof value]))
+        : { type: typeof parsedContent };
+      console.error('[AI] report validation failed', { keys: Object.keys(shape), shape });
+    }
     if (!report) return buildFallbackResponse(profile, 'AI вернул неполный отчёт, поэтому показан базовый анализ.', platform);
     const local = createProfileAudit(profile, platform);
     const audit: ProfileAudit = { ...local, analysisMode: 'ai', analysisSummary: report.overallSummary, barrier: { title: report.mainBarrier, description: report.overallSummary }, likelihood: report.orderProbability, trustLabel: report.trustLevel, issues: report.topProblems, quickWins: report.quickWins, oneDay: report.oneDayFixes, maximumEffect: report.highImpactFixes[0], clientViews: report.clientPerspectives, missingDataWarnings: report.missingDataWarnings, improvements: { ...local.improvements, headline: report.improvedHeadline, description: report.improvedDescription, remove: report.phrasesToRemove, add: report.phrasesToAdd, portfolio: report.portfolioRecommendations.join(' '), price: report.pricingRecommendations.join(' '), structure: report.kworkRecommendations.join(' ') } };

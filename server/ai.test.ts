@@ -109,4 +109,16 @@ describe('buildFallbackResponse', () => {
     expect(response.mode).toBe('ai');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('logs the response shape when validation rejects a paid AI response', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ overallSummary: 'ok' }) } }] }), { status: 200 })));
+
+    const response = await analyzeWithAi({ ...emptyProfile, title: 'Разработчик', description: 'Делаю сайты', goal: 'orders' });
+
+    expect(response.mode).toBe('basic');
+    expect(errorSpy).toHaveBeenCalledWith('[AI] report validation failed', expect.objectContaining({ keys: ['overallSummary'] }));
+    errorSpy.mockRestore();
+  });
 });
