@@ -18,6 +18,15 @@ export const AI_OUTPUT_TOKEN_BUDGETS = {
 const outputTokenBudget = (model?: AnalyzeOptions['model']): number =>
   AI_OUTPUT_TOKEN_BUDGETS[model ?? 'gpt-5.6-luna'];
 
+// Full structured reports can take longer than a short chat response,
+// especially through the Render relay. Keep the timeout configurable while
+// allowing enough time for a paid request to finish instead of charging and
+// falling back after 30 seconds.
+const aiRequestTimeoutMs = (): number => {
+  const configured = Number(process.env.AI_REQUEST_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured >= 30_000 ? configured : 120_000;
+};
+
 const resolveOpenRouterModel = (model?: AnalyzeOptions['model']): string => {
   if (model === 'gpt-5.6-terra') return process.env.OPENROUTER_MODEL_TERRA || 'openai/gpt-5.6-terra';
   if (model === 'gpt-5.6-sol') return process.env.OPENROUTER_MODEL_SOL || 'openai/gpt-5.6-sol';
@@ -154,7 +163,7 @@ export async function analyzeWithAi(profile: ProfileInput, options: AnalyzeOptio
     // not leave the signal for the next request permanently aborted.
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const attemptController = new AbortController();
-      const attemptTimeout = setTimeout(() => attemptController.abort(), 30_000);
+      const attemptTimeout = setTimeout(() => attemptController.abort(), aiRequestTimeoutMs());
       try {
         response = await fetch(targetUrl, { ...requestInit, signal: attemptController.signal });
         break;

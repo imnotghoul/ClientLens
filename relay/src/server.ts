@@ -28,7 +28,9 @@ export function createRelayApp(options: RelayOptions = {}): Express {
     if (!apiKey) return response.status(503).json({ error: 'AI relay is not configured' });
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000);
+    const configuredTimeout = Number(process.env.AI_RELAY_TIMEOUT_MS);
+    const relayTimeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout >= 45_000 ? configuredTimeout : 120_000;
+    const timeout = setTimeout(() => controller.abort(), relayTimeoutMs);
     try {
       const upstream = await fetchImpl(`${process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'}/chat/completions`, {
         method: 'POST',
